@@ -1,15 +1,19 @@
-from fastapi import FastAPI, APIRouter
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Depends
+from fastapi.responses import JSONResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
 import logging
 from pathlib import Path
-from pydantic import BaseModel, Field, ConfigDict
-from typing import List
+from pydantic import BaseModel, Field, ConfigDict, EmailStr
+from typing import List, Optional, Dict, Any
 import uuid
-from datetime import datetime, timezone
-
+from datetime import datetime, timezone, timedelta
+import jwt
+import bcrypt
+import socketio
+import httpx
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -19,63 +23,19 @@ mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
 
-# Create the main app without a prefix
-app = FastAPI()
+# JWT Config
+JWT_SECRET = os.environ.get('JWT_SECRET', 'anywork_secret_key')
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRATION_DAYS = 7
+
+# Socket.IO setup
+sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*')
+
+# Create the main FastAPI app
+fastapi_app = FastAPI()
 
 # Create a router with the /api prefix
 api_router = APIRouter(prefix="/api")
-
-
-# Define Models
-class StatusCheck(BaseModel):
-    model_config = ConfigDict(extra="ignore")  # Ignore MongoDB's _id field
-    
-    id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    client_name: str
-    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
-
-class StatusCheckCreate(BaseModel):
-    client_name: str
-
-# Add your routes to the router instead of directly to app
-@api_router.get("/")
-async def root():
-    return {"message": "Hello World"}
-
-@api_router.post("/status", response_model=StatusCheck)
-async def create_status_check(input: StatusCheckCreate):
-    status_dict = input.model_dump()
-    status_obj = StatusCheck(**status_dict)
-    
-    # Convert to dict and serialize datetime to ISO string for MongoDB
-    doc = status_obj.model_dump()
-    doc['timestamp'] = doc['timestamp'].isoformat()
-    
-    _ = await db.status_checks.insert_one(doc)
-    return status_obj
-
-@api_router.get("/status", response_model=List[StatusCheck])
-async def get_status_checks():
-    # Exclude MongoDB's _id field from the query results
-    status_checks = await db.status_checks.find({}, {"_id": 0}).to_list(1000)
-    
-    # Convert ISO string timestamps back to datetime objects
-    for check in status_checks:
-        if isinstance(check['timestamp'], str):
-            check['timestamp'] = datetime.fromisoformat(check['timestamp'])
-    
-    return status_checks
-
-# Include the router in the main app
-app.include_router(api_router)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_credentials=True,
-    allow_origins=os.environ.get('CORS_ORIGINS', '*').split(','),
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 # Configure logging
 logging.basicConfig(
@@ -84,6 +44,979 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-@app.on_event("shutdown")
+# ==================== MODELS ====================
+
+class UserBase(BaseModel):
+    email: EmailStr
+    name: str
+    phone: Optional[str] = None
+    role: str = "customer"  # customer, helper, admin
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
+    name: str
+    phone: Optional[str] = None
+    role: str = "customer"
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+class User(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    user_id: str
+    email: str
+    name: str
+    phone: Optional[str] = None
+    role: str = "customer"
+    picture: Optional[str] = None
+    created_at: datetime
+    is_helper: bool = False
+
+class HelperProfileCreate(BaseModel):
+    bio: str
+    categories: List[str]
+    hourly_rate: float
+    fixed_rate: Optional[float] = None
+    postcode: str
+    availability: Dict[str, Any] = {}
+    verified_id: bool = False
+    insured: bool = False
+
+class HelperProfile(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    helper_id: str
+    user_id: str
+    bio: str
+    categories: List[str]
+    hourly_rate: float
+    fixed_rate: Optional[float] = None
+    postcode: str
+    availability: Dict[str, Any] = {}
+    verified_id: bool = False
+    insured: bool = False
+    rating: float = 0.0
+    total_reviews: int = 0
+    reliability_score: float = 100.0
+    jobs_completed: int = 0
+    created_at: datetime
+
+class JobCreate(BaseModel):
+    title: str
+    description: str
+    category: str
+    location_type: str  # home, workplace, other
+    postcode: str
+    address: Optional[str] = None
+    date_needed: str
+    time_needed: str
+    duration_hours: float
+    budget_type: str  # hourly, fixed
+    budget_amount: float
+    photos: List[str] = []
+
+class Job(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    job_id: str
+    user_id: str
+    user_name: str
+    title: str
+    description: str
+    category: str
+    location_type: str
+    postcode: str
+    address: Optional[str] = None
+    date_needed: str
+    time_needed: str
+    duration_hours: float
+    budget_type: str
+    budget_amount: float
+    photos: List[str] = []
+    status: str = "open"  # open, in_progress, completed, cancelled
+    created_at: datetime
+
+class BookingCreate(BaseModel):
+    job_id: Optional[str] = None
+    helper_id: str
+    service_type: str
+    date: str
+    time: str
+    duration_hours: float
+    total_amount: float
+    platform_fee: float
+    notes: Optional[str] = None
+
+class Booking(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    booking_id: str
+    customer_id: str
+    helper_id: str
+    job_id: Optional[str] = None
+    service_type: str
+    date: str
+    time: str
+    duration_hours: float
+    total_amount: float
+    platform_fee: float
+    notes: Optional[str] = None
+    status: str = "pending"  # pending, confirmed, completed, cancelled
+    payment_status: str = "unpaid"
+    created_at: datetime
+
+class ReviewCreate(BaseModel):
+    booking_id: str
+    helper_id: str
+    rating: int
+    comment: str
+
+class Review(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    review_id: str
+    booking_id: str
+    reviewer_id: str
+    reviewer_name: str
+    helper_id: str
+    rating: int
+    comment: str
+    created_at: datetime
+
+class MessageCreate(BaseModel):
+    conversation_id: str
+    content: str
+
+class Message(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    message_id: str
+    conversation_id: str
+    sender_id: str
+    sender_name: str
+    content: str
+    created_at: datetime
+
+class CheckoutRequest(BaseModel):
+    booking_id: str
+    origin_url: str
+
+# ==================== AUTH HELPERS ====================
+
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+
+def verify_password(password: str, hashed: str) -> bool:
+    return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+
+def create_jwt_token(user_id: str) -> str:
+    expiry = datetime.now(timezone.utc) + timedelta(days=JWT_EXPIRATION_DAYS)
+    payload = {"user_id": user_id, "exp": expiry}
+    return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
+
+def decode_jwt_token(token: str) -> Optional[str]:
+    try:
+        payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        return payload.get("user_id")
+    except jwt.ExpiredSignatureError:
+        return None
+    except jwt.InvalidTokenError:
+        return None
+
+async def get_current_user(request: Request) -> User:
+    # Check cookie first
+    session_token = request.cookies.get("session_token")
+    if session_token:
+        session = await db.user_sessions.find_one({"session_token": session_token}, {"_id": 0})
+        if session:
+            expires_at = session.get("expires_at")
+            if isinstance(expires_at, str):
+                expires_at = datetime.fromisoformat(expires_at)
+            if expires_at.tzinfo is None:
+                expires_at = expires_at.replace(tzinfo=timezone.utc)
+            if expires_at > datetime.now(timezone.utc):
+                user = await db.users.find_one({"user_id": session["user_id"]}, {"_id": 0})
+                if user:
+                    return User(**user)
+    
+    # Check Authorization header
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
+        user_id = decode_jwt_token(token)
+        if user_id:
+            user = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+            if user:
+                return User(**user)
+    
+    raise HTTPException(status_code=401, detail="Not authenticated")
+
+async def get_optional_user(request: Request) -> Optional[User]:
+    try:
+        return await get_current_user(request)
+    except HTTPException:
+        return None
+
+# ==================== AUTH ROUTES ====================
+
+@api_router.post("/auth/register")
+async def register(data: UserCreate):
+    existing = await db.users.find_one({"email": data.email}, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    user_id = f"user_{uuid.uuid4().hex[:12]}"
+    user_doc = {
+        "user_id": user_id,
+        "email": data.email,
+        "name": data.name,
+        "phone": data.phone,
+        "role": data.role,
+        "password_hash": hash_password(data.password),
+        "picture": None,
+        "is_helper": data.role == "helper",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.users.insert_one(user_doc)
+    
+    token = create_jwt_token(user_id)
+    user_doc.pop("password_hash", None)
+    user_doc.pop("_id", None)
+    
+    return {"token": token, "user": user_doc}
+
+@api_router.post("/auth/login")
+async def login(data: UserLogin):
+    user = await db.users.find_one({"email": data.email}, {"_id": 0})
+    if not user or not verify_password(data.password, user.get("password_hash", "")):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    
+    token = create_jwt_token(user["user_id"])
+    user.pop("password_hash", None)
+    
+    return {"token": token, "user": user}
+
+# REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
+@api_router.post("/auth/session")
+async def process_google_session(request: Request):
+    body = await request.json()
+    session_id = body.get("session_id")
+    
+    if not session_id:
+        raise HTTPException(status_code=400, detail="session_id required")
+    
+    async with httpx.AsyncClient() as client:
+        response = await client.get(
+            "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+            headers={"X-Session-ID": session_id}
+        )
+        if response.status_code != 200:
+            raise HTTPException(status_code=401, detail="Invalid session")
+        
+        google_data = response.json()
+    
+    email = google_data.get("email")
+    existing_user = await db.users.find_one({"email": email}, {"_id": 0})
+    
+    if existing_user:
+        user_id = existing_user["user_id"]
+        await db.users.update_one(
+            {"user_id": user_id},
+            {"$set": {
+                "name": google_data.get("name", existing_user.get("name")),
+                "picture": google_data.get("picture")
+            }}
+        )
+    else:
+        user_id = f"user_{uuid.uuid4().hex[:12]}"
+        user_doc = {
+            "user_id": user_id,
+            "email": email,
+            "name": google_data.get("name", ""),
+            "picture": google_data.get("picture"),
+            "phone": None,
+            "role": "customer",
+            "is_helper": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        await db.users.insert_one(user_doc)
+    
+    session_token = google_data.get("session_token")
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+    
+    await db.user_sessions.update_one(
+        {"user_id": user_id},
+        {"$set": {
+            "user_id": user_id,
+            "session_token": session_token,
+            "expires_at": expires_at.isoformat(),
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }},
+        upsert=True
+    )
+    
+    user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
+    
+    response = JSONResponse(content={"user": user})
+    response.set_cookie(
+        key="session_token",
+        value=session_token,
+        httponly=True,
+        secure=True,
+        samesite="none",
+        path="/",
+        max_age=7 * 24 * 60 * 60
+    )
+    return response
+
+@api_router.get("/auth/me")
+async def get_me(user: User = Depends(get_current_user)):
+    return user.model_dump()
+
+@api_router.post("/auth/logout")
+async def logout(request: Request):
+    session_token = request.cookies.get("session_token")
+    if session_token:
+        await db.user_sessions.delete_one({"session_token": session_token})
+    
+    response = JSONResponse(content={"message": "Logged out"})
+    response.delete_cookie("session_token", path="/")
+    return response
+
+# ==================== HELPER ROUTES ====================
+
+@api_router.post("/helpers/profile")
+async def create_helper_profile(data: HelperProfileCreate, user: User = Depends(get_current_user)):
+    existing = await db.helper_profiles.find_one({"user_id": user.user_id}, {"_id": 0})
+    if existing:
+        raise HTTPException(status_code=400, detail="Helper profile already exists")
+    
+    helper_id = f"helper_{uuid.uuid4().hex[:12]}"
+    profile_doc = {
+        "helper_id": helper_id,
+        "user_id": user.user_id,
+        **data.model_dump(),
+        "rating": 0.0,
+        "total_reviews": 0,
+        "reliability_score": 100.0,
+        "jobs_completed": 0,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.helper_profiles.insert_one(profile_doc)
+    
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"is_helper": True, "role": "helper"}}
+    )
+    
+    profile_doc.pop("_id", None)
+    return profile_doc
+
+@api_router.put("/helpers/profile")
+async def update_helper_profile(data: HelperProfileCreate, user: User = Depends(get_current_user)):
+    result = await db.helper_profiles.update_one(
+        {"user_id": user.user_id},
+        {"$set": data.model_dump()}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    
+    profile = await db.helper_profiles.find_one({"user_id": user.user_id}, {"_id": 0})
+    return profile
+
+@api_router.get("/helpers")
+async def list_helpers(
+    category: Optional[str] = None,
+    postcode: Optional[str] = None,
+    min_rating: Optional[float] = None,
+    verified_only: bool = False,
+    insured_only: bool = False,
+    available_now: bool = False,
+    skip: int = 0,
+    limit: int = 20
+):
+    query = {}
+    if category:
+        query["categories"] = {"$in": [category]}
+    if postcode:
+        query["postcode"] = {"$regex": f"^{postcode[:3]}", "$options": "i"}
+    if min_rating:
+        query["rating"] = {"$gte": min_rating}
+    if verified_only:
+        query["verified_id"] = True
+    if insured_only:
+        query["insured"] = True
+    
+    helpers = await db.helper_profiles.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
+    
+    # Enrich with user data
+    for helper in helpers:
+        user = await db.users.find_one({"user_id": helper["user_id"]}, {"_id": 0, "password_hash": 0})
+        if user:
+            helper["user_name"] = user.get("name", "")
+            helper["user_picture"] = user.get("picture")
+    
+    total = await db.helper_profiles.count_documents(query)
+    return {"helpers": helpers, "total": total}
+
+@api_router.get("/helpers/{helper_id}")
+async def get_helper(helper_id: str):
+    helper = await db.helper_profiles.find_one({"helper_id": helper_id}, {"_id": 0})
+    if not helper:
+        raise HTTPException(status_code=404, detail="Helper not found")
+    
+    user = await db.users.find_one({"user_id": helper["user_id"]}, {"_id": 0, "password_hash": 0})
+    if user:
+        helper["user_name"] = user.get("name", "")
+        helper["user_picture"] = user.get("picture")
+        helper["user_email"] = user.get("email")
+    
+    reviews = await db.reviews.find({"helper_id": helper_id}, {"_id": 0}).sort("created_at", -1).limit(10).to_list(10)
+    helper["recent_reviews"] = reviews
+    
+    return helper
+
+@api_router.get("/helpers/me/profile")
+async def get_my_helper_profile(user: User = Depends(get_current_user)):
+    profile = await db.helper_profiles.find_one({"user_id": user.user_id}, {"_id": 0})
+    if not profile:
+        raise HTTPException(status_code=404, detail="No helper profile found")
+    return profile
+
+# ==================== JOB ROUTES ====================
+
+@api_router.post("/jobs")
+async def create_job(data: JobCreate, user: User = Depends(get_current_user)):
+    job_id = f"job_{uuid.uuid4().hex[:12]}"
+    job_doc = {
+        "job_id": job_id,
+        "user_id": user.user_id,
+        "user_name": user.name,
+        **data.model_dump(),
+        "status": "open",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.jobs.insert_one(job_doc)
+    job_doc.pop("_id", None)
+    return job_doc
+
+@api_router.get("/jobs")
+async def list_jobs(
+    category: Optional[str] = None,
+    postcode: Optional[str] = None,
+    status: str = "open",
+    skip: int = 0,
+    limit: int = 20
+):
+    query = {"status": status}
+    if category:
+        query["category"] = category
+    if postcode:
+        query["postcode"] = {"$regex": f"^{postcode[:3]}", "$options": "i"}
+    
+    jobs = await db.jobs.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    total = await db.jobs.count_documents(query)
+    return {"jobs": jobs, "total": total}
+
+@api_router.get("/jobs/{job_id}")
+async def get_job(job_id: str):
+    job = await db.jobs.find_one({"job_id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    return job
+
+@api_router.get("/jobs/user/my-jobs")
+async def get_my_jobs(user: User = Depends(get_current_user)):
+    jobs = await db.jobs.find({"user_id": user.user_id}, {"_id": 0}).sort("created_at", -1).to_list(100)
+    return {"jobs": jobs}
+
+# ==================== BOOKING ROUTES ====================
+
+@api_router.post("/bookings")
+async def create_booking(data: BookingCreate, user: User = Depends(get_current_user)):
+    booking_id = f"booking_{uuid.uuid4().hex[:12]}"
+    booking_doc = {
+        "booking_id": booking_id,
+        "customer_id": user.user_id,
+        **data.model_dump(),
+        "status": "pending",
+        "payment_status": "unpaid",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.bookings.insert_one(booking_doc)
+    booking_doc.pop("_id", None)
+    return booking_doc
+
+@api_router.get("/bookings")
+async def list_bookings(user: User = Depends(get_current_user)):
+    # Get bookings where user is customer or helper
+    helper_profile = await db.helper_profiles.find_one({"user_id": user.user_id}, {"_id": 0})
+    
+    query = {"$or": [{"customer_id": user.user_id}]}
+    if helper_profile:
+        query["$or"].append({"helper_id": helper_profile["helper_id"]})
+    
+    bookings = await db.bookings.find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
+    
+    # Enrich with helper/customer info
+    for booking in bookings:
+        helper = await db.helper_profiles.find_one({"helper_id": booking["helper_id"]}, {"_id": 0})
+        if helper:
+            helper_user = await db.users.find_one({"user_id": helper["user_id"]}, {"_id": 0, "password_hash": 0})
+            booking["helper_name"] = helper_user.get("name") if helper_user else ""
+            booking["helper_picture"] = helper_user.get("picture") if helper_user else None
+        
+        customer = await db.users.find_one({"user_id": booking["customer_id"]}, {"_id": 0, "password_hash": 0})
+        if customer:
+            booking["customer_name"] = customer.get("name")
+    
+    return {"bookings": bookings}
+
+@api_router.get("/bookings/{booking_id}")
+async def get_booking(booking_id: str, user: User = Depends(get_current_user)):
+    booking = await db.bookings.find_one({"booking_id": booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    return booking
+
+@api_router.put("/bookings/{booking_id}/status")
+async def update_booking_status(booking_id: str, status: str, user: User = Depends(get_current_user)):
+    result = await db.bookings.update_one(
+        {"booking_id": booking_id},
+        {"$set": {"status": status}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    booking = await db.bookings.find_one({"booking_id": booking_id}, {"_id": 0})
+    return booking
+
+# ==================== REVIEW ROUTES ====================
+
+@api_router.post("/reviews")
+async def create_review(data: ReviewCreate, user: User = Depends(get_current_user)):
+    review_id = f"review_{uuid.uuid4().hex[:12]}"
+    review_doc = {
+        "review_id": review_id,
+        "reviewer_id": user.user_id,
+        "reviewer_name": user.name,
+        **data.model_dump(),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.reviews.insert_one(review_doc)
+    
+    # Update helper rating
+    reviews = await db.reviews.find({"helper_id": data.helper_id}, {"_id": 0}).to_list(1000)
+    if reviews:
+        avg_rating = sum(r["rating"] for r in reviews) / len(reviews)
+        await db.helper_profiles.update_one(
+            {"helper_id": data.helper_id},
+            {"$set": {"rating": round(avg_rating, 1), "total_reviews": len(reviews)}}
+        )
+    
+    review_doc.pop("_id", None)
+    return review_doc
+
+@api_router.get("/reviews/helper/{helper_id}")
+async def get_helper_reviews(helper_id: str, skip: int = 0, limit: int = 20):
+    reviews = await db.reviews.find({"helper_id": helper_id}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    total = await db.reviews.count_documents({"helper_id": helper_id})
+    return {"reviews": reviews, "total": total}
+
+# ==================== MESSAGE ROUTES ====================
+
+@api_router.get("/conversations")
+async def list_conversations(user: User = Depends(get_current_user)):
+    conversations = await db.conversations.find(
+        {"participants": user.user_id},
+        {"_id": 0}
+    ).sort("updated_at", -1).to_list(100)
+    
+    # Enrich with participant info and last message
+    for conv in conversations:
+        other_id = [p for p in conv["participants"] if p != user.user_id][0] if len(conv.get("participants", [])) > 1 else None
+        if other_id:
+            other_user = await db.users.find_one({"user_id": other_id}, {"_id": 0, "password_hash": 0})
+            conv["other_user"] = other_user
+        
+        last_msg = await db.messages.find_one(
+            {"conversation_id": conv["conversation_id"]},
+            {"_id": 0}
+        )
+        conv["last_message"] = last_msg
+    
+    return {"conversations": conversations}
+
+@api_router.post("/conversations")
+async def create_conversation(other_user_id: str, booking_id: Optional[str] = None, user: User = Depends(get_current_user)):
+    # Check if conversation exists
+    existing = await db.conversations.find_one({
+        "participants": {"$all": [user.user_id, other_user_id]}
+    }, {"_id": 0})
+    
+    if existing:
+        return existing
+    
+    conversation_id = f"conv_{uuid.uuid4().hex[:12]}"
+    conv_doc = {
+        "conversation_id": conversation_id,
+        "participants": [user.user_id, other_user_id],
+        "booking_id": booking_id,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "updated_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.conversations.insert_one(conv_doc)
+    conv_doc.pop("_id", None)
+    return conv_doc
+
+@api_router.get("/messages/{conversation_id}")
+async def get_messages(conversation_id: str, user: User = Depends(get_current_user)):
+    conv = await db.conversations.find_one({"conversation_id": conversation_id}, {"_id": 0})
+    if not conv or user.user_id not in conv.get("participants", []):
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    messages = await db.messages.find(
+        {"conversation_id": conversation_id},
+        {"_id": 0}
+    ).sort("created_at", 1).to_list(1000)
+    
+    return {"messages": messages, "conversation": conv}
+
+@api_router.post("/messages")
+async def send_message(data: MessageCreate, user: User = Depends(get_current_user)):
+    conv = await db.conversations.find_one({"conversation_id": data.conversation_id}, {"_id": 0})
+    if not conv or user.user_id not in conv.get("participants", []):
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    message_id = f"msg_{uuid.uuid4().hex[:12]}"
+    msg_doc = {
+        "message_id": message_id,
+        "conversation_id": data.conversation_id,
+        "sender_id": user.user_id,
+        "sender_name": user.name,
+        "content": data.content,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.messages.insert_one(msg_doc)
+    
+    await db.conversations.update_one(
+        {"conversation_id": data.conversation_id},
+        {"$set": {"updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    msg_doc.pop("_id", None)
+    
+    # Broadcast via WebSocket
+    await sio.emit('new_message', msg_doc, room=data.conversation_id)
+    
+    return msg_doc
+
+# ==================== PAYMENT ROUTES ====================
+
+@api_router.post("/payments/checkout")
+async def create_checkout(data: CheckoutRequest, user: User = Depends(get_current_user)):
+    from emergentintegrations.payments.stripe.checkout import StripeCheckout, CheckoutSessionRequest
+    
+    booking = await db.bookings.find_one({"booking_id": data.booking_id}, {"_id": 0})
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    
+    if booking["customer_id"] != user.user_id:
+        raise HTTPException(status_code=403, detail="Not your booking")
+    
+    api_key = os.environ.get('STRIPE_API_KEY')
+    host_url = data.origin_url
+    webhook_url = f"{host_url}/api/webhook/stripe"
+    
+    stripe_checkout = StripeCheckout(api_key=api_key, webhook_url=webhook_url)
+    
+    amount = float(booking["total_amount"])
+    success_url = f"{host_url}/booking/{data.booking_id}/success?session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{host_url}/booking/{data.booking_id}"
+    
+    checkout_request = CheckoutSessionRequest(
+        amount=amount,
+        currency="gbp",
+        success_url=success_url,
+        cancel_url=cancel_url,
+        metadata={
+            "booking_id": data.booking_id,
+            "user_id": user.user_id
+        }
+    )
+    
+    session = await stripe_checkout.create_checkout_session(checkout_request)
+    
+    # Create payment transaction record
+    transaction_id = f"txn_{uuid.uuid4().hex[:12]}"
+    await db.payment_transactions.insert_one({
+        "transaction_id": transaction_id,
+        "booking_id": data.booking_id,
+        "user_id": user.user_id,
+        "session_id": session.session_id,
+        "amount": amount,
+        "currency": "gbp",
+        "payment_status": "pending",
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    
+    return {"url": session.url, "session_id": session.session_id}
+
+@api_router.get("/payments/status/{session_id}")
+async def get_payment_status(session_id: str, user: User = Depends(get_current_user)):
+    from emergentintegrations.payments.stripe.checkout import StripeCheckout
+    
+    api_key = os.environ.get('STRIPE_API_KEY')
+    stripe_checkout = StripeCheckout(api_key=api_key, webhook_url="")
+    
+    status = await stripe_checkout.get_checkout_status(session_id)
+    
+    # Update transaction if paid
+    if status.payment_status == "paid":
+        txn = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
+        if txn and txn.get("payment_status") != "paid":
+            await db.payment_transactions.update_one(
+                {"session_id": session_id},
+                {"$set": {"payment_status": "paid"}}
+            )
+            await db.bookings.update_one(
+                {"booking_id": txn["booking_id"]},
+                {"$set": {"payment_status": "paid", "status": "confirmed"}}
+            )
+    
+    return {
+        "status": status.status,
+        "payment_status": status.payment_status,
+        "amount_total": status.amount_total,
+        "currency": status.currency
+    }
+
+@api_router.post("/webhook/stripe")
+async def stripe_webhook(request: Request):
+    from emergentintegrations.payments.stripe.checkout import StripeCheckout
+    
+    api_key = os.environ.get('STRIPE_API_KEY')
+    stripe_checkout = StripeCheckout(api_key=api_key, webhook_url="")
+    
+    body = await request.body()
+    signature = request.headers.get("Stripe-Signature")
+    
+    try:
+        event = await stripe_checkout.handle_webhook(body, signature)
+        
+        if event.payment_status == "paid":
+            txn = await db.payment_transactions.find_one({"session_id": event.session_id}, {"_id": 0})
+            if txn and txn.get("payment_status") != "paid":
+                await db.payment_transactions.update_one(
+                    {"session_id": event.session_id},
+                    {"$set": {"payment_status": "paid"}}
+                )
+                await db.bookings.update_one(
+                    {"booking_id": txn["booking_id"]},
+                    {"$set": {"payment_status": "paid", "status": "confirmed"}}
+                )
+        
+        return {"received": True}
+    except Exception as e:
+        logger.error(f"Webhook error: {e}")
+        return {"received": False, "error": str(e)}
+
+# ==================== CATEGORIES ====================
+
+CATEGORIES = [
+    {"id": "home-help", "name": "Home Help", "icon": "Home"},
+    {"id": "cleaning", "name": "Cleaning", "icon": "Sparkles"},
+    {"id": "pets", "name": "Pets", "icon": "PawPrint"},
+    {"id": "tutoring", "name": "Tutoring", "icon": "GraduationCap"},
+    {"id": "driving", "name": "Driving Cover", "icon": "Car"},
+    {"id": "moving", "name": "Moving Help", "icon": "Truck"},
+    {"id": "tech", "name": "Tech Help", "icon": "Laptop"},
+    {"id": "handyman", "name": "Handyman", "icon": "Wrench"},
+    {"id": "gardening", "name": "Gardening", "icon": "Flower2"},
+    {"id": "childcare", "name": "Childcare", "icon": "Baby"},
+    {"id": "eldercare", "name": "Elder Care", "icon": "Heart"},
+    {"id": "events", "name": "Events", "icon": "PartyPopper"}
+]
+
+@api_router.get("/categories")
+async def get_categories():
+    return {"categories": CATEGORIES}
+
+# ==================== SOCKET.IO EVENTS ====================
+
+@sio.event
+async def connect(sid, environ):
+    logger.info(f"Client connected: {sid}")
+
+@sio.event
+async def disconnect(sid):
+    logger.info(f"Client disconnected: {sid}")
+
+@sio.event
+async def join_room(sid, data):
+    room_id = data.get("room_id")
+    if room_id:
+        await sio.enter_room(sid, room_id)
+        logger.info(f"Client {sid} joined room {room_id}")
+
+@sio.event
+async def leave_room(sid, data):
+    room_id = data.get("room_id")
+    if room_id:
+        await sio.leave_room(sid, room_id)
+        logger.info(f"Client {sid} left room {room_id}")
+
+# ==================== SAMPLE DATA ====================
+
+@api_router.post("/seed-data")
+async def seed_sample_data():
+    """Seed sample helpers and jobs for demo purposes"""
+    
+    # Sample helpers
+    sample_helpers = [
+        {
+            "helper_id": f"helper_{uuid.uuid4().hex[:12]}",
+            "user_id": f"user_{uuid.uuid4().hex[:12]}",
+            "bio": "Professional cleaner with 5 years experience. I take pride in making homes sparkle!",
+            "categories": ["cleaning", "home-help"],
+            "hourly_rate": 15.0,
+            "postcode": "SW1A 1AA",
+            "availability": {"monday": ["09:00-17:00"], "tuesday": ["09:00-17:00"], "wednesday": ["09:00-17:00"]},
+            "verified_id": True,
+            "insured": True,
+            "rating": 4.9,
+            "total_reviews": 47,
+            "reliability_score": 98.0,
+            "jobs_completed": 52,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "user_name": "Sarah Johnson",
+            "user_picture": "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=150"
+        },
+        {
+            "helper_id": f"helper_{uuid.uuid4().hex[:12]}",
+            "user_id": f"user_{uuid.uuid4().hex[:12]}",
+            "bio": "Certified dog walker and pet sitter. Your furry friends are in safe hands!",
+            "categories": ["pets"],
+            "hourly_rate": 12.0,
+            "postcode": "E1 6AN",
+            "availability": {"monday": ["07:00-20:00"], "tuesday": ["07:00-20:00"], "saturday": ["08:00-18:00"]},
+            "verified_id": True,
+            "insured": True,
+            "rating": 4.8,
+            "total_reviews": 89,
+            "reliability_score": 99.0,
+            "jobs_completed": 124,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "user_name": "James Williams",
+            "user_picture": "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150"
+        },
+        {
+            "helper_id": f"helper_{uuid.uuid4().hex[:12]}",
+            "user_id": f"user_{uuid.uuid4().hex[:12]}",
+            "bio": "Maths and Science tutor - GCSE & A-Level specialist. Helping students achieve their best!",
+            "categories": ["tutoring"],
+            "hourly_rate": 35.0,
+            "postcode": "NW1 4RY",
+            "availability": {"monday": ["16:00-21:00"], "wednesday": ["16:00-21:00"], "saturday": ["10:00-18:00"]},
+            "verified_id": True,
+            "insured": False,
+            "rating": 5.0,
+            "total_reviews": 23,
+            "reliability_score": 100.0,
+            "jobs_completed": 28,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "user_name": "Dr. Emily Chen",
+            "user_picture": "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150"
+        },
+        {
+            "helper_id": f"helper_{uuid.uuid4().hex[:12]}",
+            "user_id": f"user_{uuid.uuid4().hex[:12]}",
+            "bio": "Experienced handyman - no job too small! From flat-pack assembly to minor repairs.",
+            "categories": ["handyman", "home-help"],
+            "hourly_rate": 25.0,
+            "fixed_rate": 50.0,
+            "postcode": "SE1 9SG",
+            "availability": {"tuesday": ["08:00-18:00"], "thursday": ["08:00-18:00"], "friday": ["08:00-18:00"]},
+            "verified_id": True,
+            "insured": True,
+            "rating": 4.7,
+            "total_reviews": 156,
+            "reliability_score": 96.0,
+            "jobs_completed": 203,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "user_name": "Mike Thompson",
+            "user_picture": "https://images.unsplash.com/photo-1560250097-0b93528c311a?w=150"
+        },
+        {
+            "helper_id": f"helper_{uuid.uuid4().hex[:12]}",
+            "user_id": f"user_{uuid.uuid4().hex[:12]}",
+            "bio": "Professional gardener with passion for creating beautiful outdoor spaces.",
+            "categories": ["gardening"],
+            "hourly_rate": 20.0,
+            "postcode": "W8 4PT",
+            "availability": {"monday": ["08:00-16:00"], "wednesday": ["08:00-16:00"], "friday": ["08:00-16:00"]},
+            "verified_id": True,
+            "insured": True,
+            "rating": 4.9,
+            "total_reviews": 67,
+            "reliability_score": 97.0,
+            "jobs_completed": 89,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "user_name": "David Green",
+            "user_picture": "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150"
+        }
+    ]
+    
+    # Insert helpers
+    for helper in sample_helpers:
+        existing = await db.helper_profiles.find_one({"user_name": helper["user_name"]}, {"_id": 0})
+        if not existing:
+            # Create user first
+            user_doc = {
+                "user_id": helper["user_id"],
+                "email": f"{helper['user_name'].lower().replace(' ', '.')}@example.com",
+                "name": helper["user_name"],
+                "picture": helper["user_picture"],
+                "role": "helper",
+                "is_helper": True,
+                "created_at": helper["created_at"]
+            }
+            await db.users.insert_one(user_doc)
+            await db.helper_profiles.insert_one(helper)
+    
+    return {"message": "Sample data seeded successfully"}
+
+# ==================== ROOT ROUTE ====================
+
+@api_router.get("/")
+async def root():
+    return {"message": "AnyWork API - UK Marketplace for Local Help"}
+
+# Include the router in the main app
+fastapi_app.include_router(api_router)
+
+fastapi_app.add_middleware(
+    CORSMiddleware,
+    allow_credentials=True,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+@fastapi_app.on_event("startup")
+async def startup():
+    logger.info("AnyWork server starting...")
+    # Create indexes
+    await db.users.create_index("email", unique=True)
+    await db.users.create_index("user_id", unique=True)
+    await db.helper_profiles.create_index("helper_id", unique=True)
+    await db.helper_profiles.create_index("user_id")
+    await db.helper_profiles.create_index("categories")
+    await db.helper_profiles.create_index("postcode")
+    await db.jobs.create_index("job_id", unique=True)
+    await db.bookings.create_index("booking_id", unique=True)
+
+@fastapi_app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
+
+# Wrap FastAPI with Socket.IO
+socket_app = socketio.ASGIApp(sio, other_asgi_app=fastapi_app, socketio_path='/api/socket.io')
+app = socket_app
