@@ -1,0 +1,70 @@
+import axios from 'axios';
+
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const API = `${BACKEND_URL}/api`;
+
+// Create axios instance
+const apiClient = axios.create({
+  baseURL: API,
+  withCredentials: true
+});
+
+// Add auth token to requests
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem('auth_token');
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+// API functions
+export const api = {
+  // Auth
+  getMe: () => apiClient.get('/auth/me'),
+  login: (data) => apiClient.post('/auth/login', data),
+  register: (data) => apiClient.post('/auth/register', data),
+  logout: () => apiClient.post('/auth/logout'),
+  processSession: (sessionId) => apiClient.post('/auth/session', { session_id: sessionId }),
+
+  // Helpers
+  getHelpers: (params) => apiClient.get('/helpers', { params }),
+  getHelper: (helperId) => apiClient.get(`/helpers/${helperId}`),
+  createHelperProfile: (data) => apiClient.post('/helpers/profile', data),
+  updateHelperProfile: (data) => apiClient.put('/helpers/profile', data),
+  getMyHelperProfile: () => apiClient.get('/helpers/me/profile'),
+
+  // Jobs
+  getJobs: (params) => apiClient.get('/jobs', { params }),
+  getJob: (jobId) => apiClient.get(`/jobs/${jobId}`),
+  createJob: (data) => apiClient.post('/jobs', data),
+  getMyJobs: () => apiClient.get('/jobs/user/my-jobs'),
+
+  // Bookings
+  getBookings: () => apiClient.get('/bookings'),
+  getBooking: (bookingId) => apiClient.get(`/bookings/${bookingId}`),
+  createBooking: (data) => apiClient.post('/bookings', data),
+  updateBookingStatus: (bookingId, status) => apiClient.put(`/bookings/${bookingId}/status`, null, { params: { status } }),
+
+  // Reviews
+  getHelperReviews: (helperId, params) => apiClient.get(`/reviews/helper/${helperId}`, { params }),
+  createReview: (data) => apiClient.post('/reviews', data),
+
+  // Messages
+  getConversations: () => apiClient.get('/conversations'),
+  createConversation: (otherUserId, bookingId) => apiClient.post('/conversations', null, { params: { other_user_id: otherUserId, booking_id: bookingId } }),
+  getMessages: (conversationId) => apiClient.get(`/messages/${conversationId}`),
+  sendMessage: (data) => apiClient.post('/messages', data),
+
+  // Payments
+  createCheckout: (data) => apiClient.post('/payments/checkout', data),
+  getPaymentStatus: (sessionId) => apiClient.get(`/payments/status/${sessionId}`),
+
+  // Categories
+  getCategories: () => apiClient.get('/categories'),
+
+  // Seed data
+  seedData: () => apiClient.post('/seed-data')
+};
+
+export default api;
