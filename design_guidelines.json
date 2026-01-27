@@ -1,0 +1,142 @@
+{
+  "identity": {
+    "name": "AnyWork",
+    "mission": "Connect people who need help with trusted local experts in the UK.",
+    "tone": "Trustworthy, Efficient, Neighbourly, Professional",
+    "aesthetic": "Apple-like Minimalist, Clean, Soft Shadows, White Space"
+  },
+  "typography": {
+    "headings": {
+      "font_family": "Manrope, sans-serif",
+      "weights": ["600", "700", "800"],
+      "usage": "Use for all section titles, hero text, and card headings. Letter spacing tight (-0.02em)."
+    },
+    "body": {
+      "font_family": "Inter, sans-serif",
+      "weights": ["400", "500"],
+      "usage": "Use for descriptions, labels, and long-form text. Relaxed line height (1.6)."
+    },
+    "installation": "Import fonts via Google Fonts in index.css: @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Manrope:wght@500;600;700;800&display=swap');"
+  },
+  "colors": {
+    "primary": {
+      "name": "Royal Blue",
+      "hex": "#0052CC",
+      "usage": "Primary buttons, active states, trust indicators, links."
+    },
+    "secondary": {
+      "name": "Vibrant Coral",
+      "hex": "#FF5A5F",
+      "usage": "Secondary actions, 'Urgent' tags, notification dots, heart icons."
+    },
+    "background": {
+      "main": "#F9FAFB",
+      "surface": "#FFFFFF",
+      "subtle": "#F3F4F6"
+    },
+    "text": {
+      "primary": "#0F172A",
+      "secondary": "#64748B",
+      "muted": "#94A3B8"
+    },
+    "status": {
+      "success": "#10B981",
+      "warning": "#F59E0B",
+      "error": "#EF4444"
+    }
+  },
+  "visual_enhancers": {
+    "shadows": {
+      "card": "0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03)",
+      "hover": "0 20px 25px -5px rgba(0, 0, 0, 0.05), 0 10px 10px -5px rgba(0, 0, 0, 0.02)",
+      "float": "0 25px 50px -12px rgba(0, 0, 0, 0.15)"
+    },
+    "radius": {
+      "card": "1rem",
+      "button": "9999px",
+      "input": "0.75rem"
+    },
+    "glassmorphism": {
+      "header": "bg-white/80 backdrop-blur-md border-b border-slate-200/50",
+      "overlay": "bg-white/90 backdrop-blur-sm"
+    }
+  },
+  "layout": {
+    "container": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8",
+    "spacing": {
+      "section": "py-20",
+      "element": "gap-6"
+    },
+    "grid": {
+      "bento": "grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6",
+      "cards": "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8"
+    }
+  },
+  "components": {
+    "buttons": {
+      "primary": "bg-[#0052CC] hover:bg-[#0043A6] text-white rounded-full px-8 py-3 font-semibold transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5",
+      "secondary": "bg-white border border-slate-200 text-slate-900 hover:bg-slate-50 rounded-full px-8 py-3 font-medium transition-all hover:border-slate-300"
+    },
+    "cards": {
+      "base": "bg-white rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all duration-300 overflow-hidden group",
+      "interactive": "cursor-pointer hover:-translate-y-1"
+    },
+    "inputs": {
+      "base": "rounded-xl border-slate-200 focus:ring-2 focus:ring-[#0052CC]/20 focus:border-[#0052CC] transition-all bg-white"
+    }
+  },
+  "image_urls": {
+    "hero_background": {
+      "url": "https://images.unsplash.com/photo-1640549709652-4d083bf189ce?crop=entropy&cs=srgb&fm=jpg&q=85",
+      "alt": "London residential street sunny",
+      "usage": "Hero section background or side image"
+    },
+    "helpers": [
+      {
+        "role": "Gardener",
+        "url": "https://images.unsplash.com/photo-1758524055098-071470ae15b3?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "alt": "Friendly gardener working"
+      },
+      {
+        "role": "Cleaner",
+        "url": "https://images.unsplash.com/photo-1758273705723-26ef454252ce?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "alt": "Professional home cleaner"
+      },
+      {
+        "role": "Tutor",
+        "url": "https://images.unsplash.com/photo-1758525862357-27fb39545240?crop=entropy&cs=srgb&fm=jpg&q=85",
+        "alt": "Tutor teaching student"
+      },
+      {
+        "role": "Consultant",
+        "url": "https://images.pexels.com/photos/7006695/pexels-photo-7006695.jpeg",
+        "alt": "Professional consultant"
+      }
+    ],
+    "interiors": [
+      {
+        "type": "Living Room",
+        "url": "https://images.pexels.com/photos/3754595/pexels-photo-3754595.jpeg",
+        "alt": "Modern bright UK living room"
+      }
+    ]
+  },
+  "instructions_to_main_agent": [
+    "1. SETUP: Install 'lucide-react' for icons. Use 'Manrope' for all headings and 'Inter' for body text.",
+    "2. THEME: Force Light Mode. Do not implement a dark mode toggle unless critical. The brand is 'Clean & White'.",
+    "3. COMPONENTS: Use Shadcn UI components but override the default radius to '0.75rem' or '1rem' to match the 'Apple-like' aesthetic. Avoid sharp corners.",
+    "4. LAYOUT: Use the 'Bento' grid strategy for the 'Popular Tasks' section on the homepage.",
+    "5. TRUST: Add 'Verified' badges (check-circle icon in Royal Blue) to helper cards. Use the 'Glassmorphism' style for the sticky navbar.",
+    "6. MAPS: Use a placeholder div with a subtle map background pattern for the 'Browse Helpers' map view if MapLibre is not fully configured yet.",
+    "7. TESTING: Add 'data-testid' to all interactive elements (buttons, inputs, cards).",
+    "8. IMAGES: Use the provided image URLs. Do not use placeholders.",
+    "9. CONTRAST: Ensure all text on colored backgrounds meets WCAG AA standards. Use white text on Royal Blue buttons."
+  ],
+  "universal_guidelines": [
+    "Avoid generic centered layouts. Use asymmetry where possible.",
+    "Use 2-3x more spacing than typical designs (e.g., p-8, p-12).",
+    "Never use pure black (#000000). Use Slate-900 (#0F172A).",
+    "Add micro-interactions to every button and card (hover scale, shadow lift).",
+    "Do not use 'transparent' backgrounds for dropdowns or modals. Use white with blur."
+  ]
+}
