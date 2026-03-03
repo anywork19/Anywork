@@ -700,6 +700,31 @@ async def get_helper_reviews(helper_id: str, skip: int = 0, limit: int = 20):
     total = await db.reviews.count_documents({"helper_id": helper_id})
     return {"reviews": reviews, "total": total}
 
+# ==================== REPORT ROUTES ====================
+
+class ReportCreate(BaseModel):
+    reported_user_id: str
+    reason: str
+    details: Optional[str] = None
+
+@api_router.post("/reports")
+async def create_report(data: ReportCreate, user: User = Depends(get_current_user)):
+    """Report a user for inappropriate behavior"""
+    report_id = f"report_{uuid.uuid4().hex[:12]}"
+    report_doc = {
+        "report_id": report_id,
+        "reporter_id": user.user_id,
+        "reporter_name": user.name,
+        "reported_user_id": data.reported_user_id,
+        "reason": data.reason,
+        "details": data.details,
+        "status": "pending",  # pending, reviewed, resolved, dismissed
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    await db.reports.insert_one(report_doc)
+    report_doc.pop("_id", None)
+    return report_doc
+
 # ==================== MESSAGE ROUTES ====================
 
 @api_router.get("/conversations")
@@ -1146,6 +1171,30 @@ async def refund_payment(transaction_id: str, user: User = Depends(require_admin
         "amount": txn["amount"],
         "customer_id": txn["customer_id"]
     }
+
+# ==================== ADMIN REPORTS ====================
+
+@api_router.get("/admin/reports")
+async def get_reports(
+    status: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 50,
+    user: User = Depends(require_admin)
+):
+    """Get all reports (admin only)"""
+    query = {}
+    if status:
+        query["status"] = status
+    
+    reports = await db.reports.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    total = await db.reports.count_documents(query)
+    
+    # Enrich with user info
+    for report in reports:
+        reported_user = await db.users.find_one({"user_id": report["reported_user_id"]}, {"_id": 0, "password_hash": 0})
+        report["reported_user"] = reported_user
+    
+    return {"reports": reports, "total": total}
 
 # ==================== HELPER EARNINGS ====================
 

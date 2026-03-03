@@ -6,6 +6,7 @@ import { Badge } from '../components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
+import ReviewForm from '../components/ReviewForm';
 
 export default function DashboardPage() {
   const navigate = useNavigate();
@@ -175,7 +176,7 @@ export default function DashboardPage() {
                   <div key={booking.booking_id} className="p-4 border border-slate-100 rounded-xl" data-testid={`booking-${booking.booking_id}`}>
                     <div className="flex items-start justify-between">
                       <div>
-                        <h4 className="font-semibold text-[#0F172A]">{booking.service_type}</h4>
+                        <h4 className="font-semibold text-[#0F172A] capitalize">{booking.service_type?.replace(/-/g, ' ')}</h4>
                         <p className="text-sm text-[#64748B]">
                           {booking.helper_name || 'Helper'}
                         </p>
@@ -202,6 +203,18 @@ export default function DashboardPage() {
                         <p className="font-semibold text-[#0F172A] mt-2">£{booking.total_amount}</p>
                       </div>
                     </div>
+                    {/* Leave Review button for completed bookings */}
+                    {booking.status === 'completed' && booking.customer_id === user?.user_id && (
+                      <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end">
+                        <ReviewForm
+                          booking={booking}
+                          helperName={booking.helper_name}
+                          onSuccess={() => {
+                            // Optionally refresh bookings
+                          }}
+                        />
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

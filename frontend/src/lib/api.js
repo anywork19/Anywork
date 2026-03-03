@@ -73,6 +73,13 @@ export const api = {
   // Categories
   getCategories: () => apiClient.get('/categories'),
 
+  // Reviews
+  createReview: (data) => apiClient.post('/reviews', data),
+  getHelperReviews: (helperId, params) => apiClient.get(`/reviews/helper/${helperId}`, { params }),
+
+  // Reports
+  reportUser: (data) => apiClient.post('/reports', data),
+
   // Seed data
   seedData: () => apiClient.post('/seed-data')
 };

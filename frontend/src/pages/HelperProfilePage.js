@@ -10,6 +10,7 @@ import { Textarea } from '../components/ui/textarea';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 import { toast } from 'sonner';
+import ReportUserDialog from '../components/ReportUserDialog';
 
 // Sample helper data
 const SAMPLE_HELPER = {
@@ -396,14 +397,11 @@ export default function HelperProfilePage() {
               </div>
 
               {/* Report Button */}
-              <button
-                onClick={handleReport}
-                className="w-full mt-4 text-sm text-[#94A3B8] hover:text-[#64748B] flex items-center justify-center gap-2"
-                data-testid="report-btn"
-              >
-                <Flag className="h-4 w-4" />
-                Report this profile
-              </button>
+              <ReportUserDialog
+                userId={helper.user_id}
+                userName={helper.user_name}
+                userType="helper"
+              />
             </div>
           </div>
         </div>
