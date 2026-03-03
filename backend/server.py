@@ -568,20 +568,54 @@ async def list_bookings(user: User = Depends(get_current_user)):
     if helper_profile:
         query["$or"].append({"helper_id": helper_profile["helper_id"]})
     
-    bookings = await db.bookings.find(query, {"_id": 0}).sort("created_at", -1).to_list(100)
+    # Use aggregation pipeline to join bookings with helpers and users in a single query (fixes N+1)
+    pipeline = [
+        {"$match": query},
+        {"$sort": {"created_at": -1}},
+        {"$limit": 100},
+        # Lookup helper profile
+        {
+            "$lookup": {
+                "from": "helper_profiles",
+                "localField": "helper_id",
+                "foreignField": "helper_id",
+                "as": "helper_data"
+            }
+        },
+        {"$unwind": {"path": "$helper_data", "preserveNullAndEmptyArrays": True}},
+        # Lookup helper user info
+        {
+            "$lookup": {
+                "from": "users",
+                "localField": "helper_data.user_id",
+                "foreignField": "user_id",
+                "as": "helper_user"
+            }
+        },
+        {"$unwind": {"path": "$helper_user", "preserveNullAndEmptyArrays": True}},
+        # Lookup customer info
+        {
+            "$lookup": {
+                "from": "users",
+                "localField": "customer_id",
+                "foreignField": "user_id",
+                "as": "customer_data"
+            }
+        },
+        {"$unwind": {"path": "$customer_data", "preserveNullAndEmptyArrays": True}},
+        # Add enriched fields
+        {
+            "$addFields": {
+                "helper_name": {"$ifNull": ["$helper_user.name", ""]},
+                "helper_picture": "$helper_user.picture",
+                "customer_name": {"$ifNull": ["$customer_data.name", ""]}
+            }
+        },
+        # Remove temporary lookup fields
+        {"$project": {"helper_data": 0, "helper_user": 0, "customer_data": 0, "_id": 0}}
+    ]
     
-    # Enrich with helper/customer info
-    for booking in bookings:
-        helper = await db.helper_profiles.find_one({"helper_id": booking["helper_id"]}, {"_id": 0})
-        if helper:
-            helper_user = await db.users.find_one({"user_id": helper["user_id"]}, {"_id": 0, "password_hash": 0})
-            booking["helper_name"] = helper_user.get("name") if helper_user else ""
-            booking["helper_picture"] = helper_user.get("picture") if helper_user else None
-        
-        customer = await db.users.find_one({"user_id": booking["customer_id"]}, {"_id": 0, "password_hash": 0})
-        if customer:
-            booking["customer_name"] = customer.get("name")
-    
+    bookings = await db.bookings.aggregate(pipeline).to_list(100)
     return {"bookings": bookings}
 
 @api_router.get("/bookings/{booking_id}")
