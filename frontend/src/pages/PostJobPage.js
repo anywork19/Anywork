@@ -221,9 +221,14 @@ export default function PostJobPage() {
                   <SelectTrigger className="mt-2" data-testid="job-category">
                     <SelectValue placeholder="Select a category" />
                   </SelectTrigger>
-                  <SelectContent>
-                    {CATEGORIES.map(cat => (
-                      <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                  <SelectContent className="max-h-80">
+                    {CATEGORY_GROUPS.map(group => (
+                      <React.Fragment key={group}>
+                        <div className="px-2 py-1.5 text-xs font-semibold text-[#64748B] bg-slate-50">{group}</div>
+                        {CATEGORIES.filter(c => c.group === group).map(cat => (
+                          <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                        ))}
+                      </React.Fragment>
                     ))}
                   </SelectContent>
                 </Select>
