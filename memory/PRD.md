@@ -29,15 +29,15 @@ Create a premium, modern UK-focused marketplace website called "AnyWork" that co
 ### Pages Built
 1. ✅ Landing Page - Hero, dual CTAs, categories, available helpers, how it works
 2. ✅ Browse Helpers - Filters, list/map view toggle, helper cards with badges
-3. ✅ Helper Profile - About, services, reviews tabs, booking calendar
+3. ✅ Helper Profile - About, services, reviews tabs, booking calendar, Report User
 4. ✅ Post a Job - 4-step form (details, location, budget, review)
 5. ✅ Become a Helper - 5-step onboarding
 6. ✅ Login/Signup - JWT + Google OAuth
-7. ✅ Messages - Real-time chat with Socket.IO
+7. ✅ Messages - Real-time chat with Socket.IO (fully wired)
 8. ✅ Checkout - Stripe payment integration with escrow
 9. ✅ Trust & Safety - Information page
-10. ✅ Dashboard - User/helper profile management
-11. ✅ Admin Dashboard - Payment management (escrow release/refund) - March 2026
+10. ✅ Dashboard - User/helper profile management with Leave Review for completed bookings
+11. ✅ Admin Dashboard - Payment management (escrow release/refund)
 
 ### Backend APIs
 - /api/auth/* (register, login, session, me, logout)
@@ -45,10 +45,12 @@ Create a premium, modern UK-focused marketplace website called "AnyWork" that co
 - /api/jobs/* (CRUD)
 - /api/bookings/* (CRUD)
 - /api/messages/* (conversations, real-time)
-- /api/reviews/* (CRUD)
+- /api/reviews/* (CRUD, create review, get helper reviews)
+- /api/reports/* (Report user functionality)
 - /api/payments/* (Stripe checkout, status)
-- /api/admin/payments/* (Admin: list, release, refund transactions) - NEW
-- /api/helper/earnings (Helper earnings summary) - NEW
+- /api/admin/payments/* (Admin: list, release, refund transactions)
+- /api/admin/reports (Admin: view all user reports)
+- /api/helper/earnings (Helper earnings summary)
 - /api/categories
 
 ### Payment Escrow System (March 2026)
@@ -61,44 +63,49 @@ Create a premium, modern UK-focused marketplace website called "AnyWork" that co
 - ✅ Backend admin role validation (403 for non-admin)
 - ✅ Helper earnings tracking
 
+### New Features (March 2026)
+- ✅ **Real-time Chat**: Socket.IO wired to frontend with room-based messaging
+- ✅ **Review System**: Star ratings + comments, auto-updates helper rating average
+- ✅ **Report User**: 7 report reasons (inappropriate, fraud, harassment, fake profile, no show, poor service, other)
+- ✅ **Map View Toggle**: MapLibre map with helper location markers showing prices
+
 ### Features
 - ✅ Responsive design (mobile-first)
-- ✅ MapLibre map integration
-- ✅ WebSocket real-time chat
+- ✅ MapLibre map integration with List/Map view toggle
+- ✅ WebSocket real-time chat (fully functional)
 - ✅ Stripe payment flow with escrow
 - ✅ Sample data seeding
 - ✅ Trust badges (Verified ID, Insured)
 - ✅ Reliability scoring
 - ✅ Category-based filtering
+- ✅ Report User dialog with 7 reasons
+- ✅ Review/Rating system for completed bookings
 
 ## Prioritized Backlog
 
 ### P0 (Critical for MVP)
 - All core features implemented ✅
 - Payment escrow system ✅
+- Real-time chat ✅
+- Review/rating system ✅
+- Report User functionality ✅
+- Map view toggle ✅
 
 ### P1 (High Priority)
-- Real-time chat functionality (wire WebSocket)
-- Review and rating system implementation
 - Email notifications for bookings
+- Push notifications
+- Helper verification flow
 
 ### P2 (Medium Priority)
-- Report User functionality
-- Map view toggle on Browse Helpers page
 - Featured helpers section on homepage
 - Seasonal pricing indicators
+- Advanced availability calendar
 
 ### P3 (Low Priority/Future)
 - Mobile app (React Native)
 - Helper analytics dashboard
 - Referral program
 - Multi-language support
-
-## Next Tasks
-1. Wire up real-time chat using WebSocket
-2. Implement review/rating system after job completion
-3. Add "Report User" functionality
-4. Implement map view toggle on Browse Helpers
 
 ## Database Collections
 - users: email, name, role, is_helper
@@ -109,3 +116,8 @@ Create a premium, modern UK-focused marketplace website called "AnyWork" that co
 - payouts: transaction_id, helper_id, amount, status
 - messages: conversation_id, sender_id, content
 - reviews: booking_id, helper_id, rating, comment
+- reports: reporter_id, reported_user_id, reason, details, status
+
+## Test Credentials
+- Customer: testcustomer@test.com / Test123!
+- Admin: admin@anywork.co.uk / Admin123!
