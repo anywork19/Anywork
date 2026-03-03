@@ -879,24 +879,87 @@ async def stripe_webhook(request: Request):
 
 # ==================== CATEGORIES ====================
 
+# Main category groups
+CATEGORY_GROUPS = [
+    {"id": "home-services", "name": "Home Services", "icon": "Home"},
+    {"id": "vehicle-services", "name": "Vehicle Services", "icon": "Car"},
+    {"id": "personal-services", "name": "Personal Services", "icon": "User"},
+    {"id": "business-support", "name": "Business Support", "icon": "Briefcase"},
+    {"id": "digital-services", "name": "Digital Services", "icon": "Monitor"},
+    {"id": "events-staffing", "name": "Events & Staffing", "icon": "PartyPopper"},
+]
+
+# All subcategories with their parent groups
 CATEGORIES = [
-    {"id": "home-help", "name": "Home Help", "icon": "Home"},
-    {"id": "cleaning", "name": "Cleaning", "icon": "Sparkles"},
-    {"id": "pets", "name": "Pets", "icon": "PawPrint"},
-    {"id": "tutoring", "name": "Tutoring", "icon": "GraduationCap"},
-    {"id": "driving", "name": "Driving Cover", "icon": "Car"},
-    {"id": "moving", "name": "Moving Help", "icon": "Truck"},
-    {"id": "tech", "name": "Tech Help", "icon": "Laptop"},
-    {"id": "handyman", "name": "Handyman", "icon": "Wrench"},
-    {"id": "gardening", "name": "Gardening", "icon": "Flower2"},
-    {"id": "childcare", "name": "Childcare", "icon": "Baby"},
-    {"id": "eldercare", "name": "Elder Care", "icon": "Heart"},
-    {"id": "events", "name": "Events", "icon": "PartyPopper"}
+    # Home Services
+    {"id": "handyman", "name": "Handyman", "group": "home-services", "icon": "Wrench"},
+    {"id": "plumbing", "name": "Plumbing", "group": "home-services", "icon": "Droplet"},
+    {"id": "electrical", "name": "Electrical Work", "group": "home-services", "icon": "Zap"},
+    {"id": "painting", "name": "Painting & Decorating", "group": "home-services", "icon": "Paintbrush"},
+    {"id": "cleaning", "name": "Cleaning", "group": "home-services", "icon": "Sparkles"},
+    {"id": "gardening", "name": "Gardening", "group": "home-services", "icon": "Flower2"},
+    {"id": "moving", "name": "Moving Help", "group": "home-services", "icon": "Truck"},
+    {"id": "furniture-assembly", "name": "Furniture Assembly", "group": "home-services", "icon": "Armchair"},
+    {"id": "pressure-washing", "name": "Pressure Washing", "group": "home-services", "icon": "Droplets"},
+    {"id": "gutter-cleaning", "name": "Gutter Cleaning", "group": "home-services", "icon": "Home"},
+    # Vehicle Services
+    {"id": "mobile-mechanic", "name": "Mobile Mechanic", "group": "vehicle-services", "icon": "Wrench"},
+    {"id": "car-servicing", "name": "Car Servicing", "group": "vehicle-services", "icon": "Car"},
+    {"id": "brake-replacement", "name": "Brake & Pad Replacement", "group": "vehicle-services", "icon": "CircleStop"},
+    {"id": "car-diagnostics", "name": "Car Diagnostics", "group": "vehicle-services", "icon": "Search"},
+    {"id": "battery-replacement", "name": "Battery Replacement", "group": "vehicle-services", "icon": "Battery"},
+    {"id": "tyre-fitting", "name": "Tyre Fitting (Mobile)", "group": "vehicle-services", "icon": "Circle"},
+    {"id": "jump-start", "name": "Jump Start", "group": "vehicle-services", "icon": "Zap"},
+    {"id": "car-wash", "name": "Car Wash at Home", "group": "vehicle-services", "icon": "Droplet"},
+    {"id": "driving-cover", "name": "Driving Cover", "group": "vehicle-services", "icon": "Car"},
+    # Personal Services
+    {"id": "tutoring", "name": "Tutoring", "group": "personal-services", "icon": "GraduationCap"},
+    {"id": "childcare", "name": "Childcare", "group": "personal-services", "icon": "Baby"},
+    {"id": "eldercare", "name": "Elder Care", "group": "personal-services", "icon": "Heart"},
+    {"id": "pets", "name": "Pets", "group": "personal-services", "icon": "PawPrint"},
+    {"id": "personal-assistant", "name": "Personal Assistant", "group": "personal-services", "icon": "ClipboardList"},
+    {"id": "grocery-pickup", "name": "Grocery Pickup", "group": "personal-services", "icon": "ShoppingCart"},
+    {"id": "parcel-collection", "name": "Parcel Collection", "group": "personal-services", "icon": "Package"},
+    {"id": "home-help", "name": "Home Help", "group": "personal-services", "icon": "Home"},
+    # Business Support
+    {"id": "temporary-staff", "name": "Temporary Staff", "group": "business-support", "icon": "Users"},
+    {"id": "retail-staff", "name": "Retail Staff Cover", "group": "business-support", "icon": "Store"},
+    {"id": "warehouse-support", "name": "Warehouse Support", "group": "business-support", "icon": "Warehouse"},
+    {"id": "delivery-drivers", "name": "Delivery Drivers", "group": "business-support", "icon": "Truck"},
+    {"id": "admin-support", "name": "Admin Support", "group": "business-support", "icon": "FileText"},
+    {"id": "event-setup", "name": "Event Setup Crew", "group": "business-support", "icon": "Tent"},
+    {"id": "labourers", "name": "Labourers", "group": "business-support", "icon": "HardHat"},
+    # Digital Services
+    {"id": "graphic-design", "name": "Graphic Design", "group": "digital-services", "icon": "Palette"},
+    {"id": "video-editing", "name": "Video Editing", "group": "digital-services", "icon": "Film"},
+    {"id": "cv-writing", "name": "CV Writing", "group": "digital-services", "icon": "FileText"},
+    {"id": "website-setup", "name": "Website Setup", "group": "digital-services", "icon": "Globe"},
+    {"id": "social-media", "name": "Social Media Management", "group": "digital-services", "icon": "Share2"},
+    {"id": "data-entry", "name": "Data Entry", "group": "digital-services", "icon": "Keyboard"},
+    {"id": "translation", "name": "Translation", "group": "digital-services", "icon": "Languages"},
+    # Events & Staffing
+    {"id": "event-staff", "name": "Event Staff", "group": "events-staffing", "icon": "Users"},
+    {"id": "waiters", "name": "Waiters", "group": "events-staffing", "icon": "UtensilsCrossed"},
+    {"id": "bartenders", "name": "Bartenders", "group": "events-staffing", "icon": "Wine"},
+    {"id": "security", "name": "Security", "group": "events-staffing", "icon": "Shield"},
+    {"id": "dj-services", "name": "DJ Services", "group": "events-staffing", "icon": "Music"},
+    {"id": "photographer", "name": "Photographer", "group": "events-staffing", "icon": "Camera"},
+    {"id": "videographer", "name": "Videographer", "group": "events-staffing", "icon": "Video"},
+    {"id": "decoration-setup", "name": "Decoration Setup", "group": "events-staffing", "icon": "Sparkles"},
 ]
 
 @api_router.get("/categories")
 async def get_categories():
-    return {"categories": CATEGORIES}
+    return {"categories": CATEGORIES, "groups": CATEGORY_GROUPS}
+
+@api_router.get("/categories/groups")
+async def get_category_groups():
+    return {"groups": CATEGORY_GROUPS}
+
+@api_router.get("/categories/group/{group_id}")
+async def get_categories_by_group(group_id: str):
+    group_categories = [c for c in CATEGORIES if c.get("group") == group_id]
+    return {"categories": group_categories}
 
 # ==================== SOCKET.IO EVENTS ====================
 
