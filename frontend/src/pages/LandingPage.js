@@ -1,9 +1,77 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Search, MapPin, Star, CheckCircle, Shield, Clock, ArrowRight, ChevronRight, Home, Car, User, Briefcase, Monitor, PartyPopper, X } from 'lucide-react';
+import { 
+  Search, MapPin, Star, CheckCircle, Shield, Clock, ArrowRight, ChevronRight, 
+  Home, Car, User, Briefcase, Monitor, PartyPopper, X,
+  Wrench, Droplet, Zap, Paintbrush, Sparkles, Flower2, Truck, Armchair, Droplets,
+  CircleStop, Battery, Circle, PawPrint, ClipboardList, ShoppingCart, Package,
+  Users, Store, Warehouse, FileText, Tent, HardHat,
+  Palette, Film, Globe, Share2, Keyboard, Languages,
+  UtensilsCrossed, Wine, ShieldCheck, Music, Camera, Video, GraduationCap, Baby, Heart, TrendingUp
+} from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../components/ui/dialog';
+import { Badge } from '../components/ui/badge';
+
+// Icon mapping for subcategories
+const SUBCATEGORY_ICONS = {
+  // Home Services
+  'handyman': Wrench,
+  'plumbing': Droplet,
+  'electrical': Zap,
+  'painting': Paintbrush,
+  'cleaning': Sparkles,
+  'gardening': Flower2,
+  'moving': Truck,
+  'furniture-assembly': Armchair,
+  'pressure-washing': Droplets,
+  'gutter-cleaning': Home,
+  // Vehicle Services
+  'mobile-mechanic': Wrench,
+  'car-servicing': Car,
+  'brake-replacement': CircleStop,
+  'car-diagnostics': Search,
+  'battery-replacement': Battery,
+  'tyre-fitting': Circle,
+  'jump-start': Zap,
+  'car-wash': Droplet,
+  'driving-cover': Car,
+  // Personal Services
+  'tutoring': GraduationCap,
+  'childcare': Baby,
+  'eldercare': Heart,
+  'pets': PawPrint,
+  'personal-assistant': ClipboardList,
+  'grocery-pickup': ShoppingCart,
+  'parcel-collection': Package,
+  'home-help': Home,
+  // Business Support
+  'temporary-staff': Users,
+  'retail-staff': Store,
+  'warehouse-support': Warehouse,
+  'delivery-drivers': Truck,
+  'admin-support': FileText,
+  'event-setup': Tent,
+  'labourers': HardHat,
+  // Digital Services
+  'graphic-design': Palette,
+  'video-editing': Film,
+  'cv-writing': FileText,
+  'website-setup': Globe,
+  'social-media': Share2,
+  'data-entry': Keyboard,
+  'translation': Languages,
+  // Events & Staffing
+  'event-staff': Users,
+  'waiters': UtensilsCrossed,
+  'bartenders': Wine,
+  'security': ShieldCheck,
+  'dj-services': Music,
+  'photographer': Camera,
+  'videographer': Video,
+  'decoration-setup': Sparkles,
+};
 
 // Main Categories with Icons
 const MAIN_CATEGORIES = [
@@ -63,70 +131,99 @@ const MAIN_CATEGORIES = [
   },
 ];
 
-// Subcategories for each main category
+// Subcategories for each main category with pricing guidance
 const SUBCATEGORIES = {
   'home-services': [
-    { id: 'handyman', name: 'Handyman', icon: '🔧' },
-    { id: 'plumbing', name: 'Plumbing', icon: '🚿' },
-    { id: 'electrical', name: 'Electrical Work', icon: '⚡' },
-    { id: 'painting', name: 'Painting & Decorating', icon: '🎨' },
-    { id: 'cleaning', name: 'Cleaning', icon: '✨' },
-    { id: 'gardening', name: 'Gardening', icon: '🌱' },
-    { id: 'moving', name: 'Moving Help', icon: '📦' },
-    { id: 'furniture-assembly', name: 'Furniture Assembly', icon: '🪑' },
-    { id: 'pressure-washing', name: 'Pressure Washing', icon: '💦' },
-    { id: 'gutter-cleaning', name: 'Gutter Cleaning', icon: '🏠' },
+    { id: 'handyman', name: 'Handyman', priceRange: '£25-45/hr' },
+    { id: 'plumbing', name: 'Plumbing', priceRange: '£40-70/hr' },
+    { id: 'electrical', name: 'Electrical Work', priceRange: '£45-75/hr' },
+    { id: 'painting', name: 'Painting & Decorating', priceRange: '£20-35/hr' },
+    { id: 'cleaning', name: 'Cleaning', priceRange: '£12-20/hr' },
+    { id: 'gardening', name: 'Gardening', priceRange: '£15-30/hr' },
+    { id: 'moving', name: 'Moving Help', priceRange: '£20-35/hr' },
+    { id: 'furniture-assembly', name: 'Furniture Assembly', priceRange: '£25-40/hr' },
+    { id: 'pressure-washing', name: 'Pressure Washing', priceRange: '£30-50/hr' },
+    { id: 'gutter-cleaning', name: 'Gutter Cleaning', priceRange: '£80-150/job' },
   ],
   'vehicle-services': [
-    { id: 'mobile-mechanic', name: 'Mobile Mechanic', icon: '🔧' },
-    { id: 'car-servicing', name: 'Car Servicing', icon: '🚗' },
-    { id: 'brake-replacement', name: 'Brake & Pad Replacement', icon: '🛑' },
-    { id: 'car-diagnostics', name: 'Car Diagnostics', icon: '🔍' },
-    { id: 'battery-replacement', name: 'Battery Replacement', icon: '🔋' },
-    { id: 'tyre-fitting', name: 'Tyre Fitting (Mobile)', icon: '🛞' },
-    { id: 'jump-start', name: 'Jump Start', icon: '⚡' },
-    { id: 'car-wash', name: 'Car Wash at Home', icon: '🧽' },
-    { id: 'driving-cover', name: 'Driving Cover', icon: '🚙' },
+    { id: 'mobile-mechanic', name: 'Mobile Mechanic', priceRange: '£45-80/hr' },
+    { id: 'car-servicing', name: 'Car Servicing', priceRange: '£100-250/service' },
+    { id: 'brake-replacement', name: 'Brake & Pad Replacement', priceRange: '£120-300/job' },
+    { id: 'car-diagnostics', name: 'Car Diagnostics', priceRange: '£40-80/check' },
+    { id: 'battery-replacement', name: 'Battery Replacement', priceRange: '£80-180/job' },
+    { id: 'tyre-fitting', name: 'Tyre Fitting (Mobile)', priceRange: '£20-40/tyre' },
+    { id: 'jump-start', name: 'Jump Start', priceRange: '£40-70/callout' },
+    { id: 'car-wash', name: 'Car Wash at Home', priceRange: '£20-60/wash' },
+    { id: 'driving-cover', name: 'Driving Cover', priceRange: '£12-20/hr' },
   ],
   'personal-services': [
-    { id: 'tutoring', name: 'Tutoring', icon: '📚' },
-    { id: 'childcare', name: 'Childcare', icon: '👶' },
-    { id: 'eldercare', name: 'Elder Care', icon: '❤️' },
-    { id: 'pets', name: 'Pets', icon: '🐕' },
-    { id: 'personal-assistant', name: 'Personal Assistant', icon: '📋' },
-    { id: 'grocery-pickup', name: 'Grocery Pickup', icon: '🛒' },
-    { id: 'parcel-collection', name: 'Parcel Collection', icon: '📬' },
-    { id: 'home-help', name: 'Home Help', icon: '🏡' },
+    { id: 'tutoring', name: 'Tutoring', priceRange: '£25-60/hr' },
+    { id: 'childcare', name: 'Childcare', priceRange: '£10-18/hr' },
+    { id: 'eldercare', name: 'Elder Care', priceRange: '£12-22/hr' },
+    { id: 'pets', name: 'Pets', priceRange: '£10-20/hr' },
+    { id: 'personal-assistant', name: 'Personal Assistant', priceRange: '£15-30/hr' },
+    { id: 'grocery-pickup', name: 'Grocery Pickup', priceRange: '£10-20/trip' },
+    { id: 'parcel-collection', name: 'Parcel Collection', priceRange: '£8-15/trip' },
+    { id: 'home-help', name: 'Home Help', priceRange: '£12-20/hr' },
   ],
   'business-support': [
-    { id: 'temporary-staff', name: 'Temporary Staff', icon: '👥' },
-    { id: 'retail-staff', name: 'Retail Staff Cover', icon: '🏪' },
-    { id: 'warehouse-support', name: 'Warehouse Support', icon: '📦' },
-    { id: 'delivery-drivers', name: 'Delivery Drivers', icon: '🚚' },
-    { id: 'admin-support', name: 'Admin Support', icon: '💼' },
-    { id: 'event-setup', name: 'Event Setup Crew', icon: '🎪' },
-    { id: 'labourers', name: 'Labourers', icon: '👷' },
+    { id: 'temporary-staff', name: 'Temporary Staff', priceRange: '£12-25/hr' },
+    { id: 'retail-staff', name: 'Retail Staff Cover', priceRange: '£11-18/hr' },
+    { id: 'warehouse-support', name: 'Warehouse Support', priceRange: '£12-20/hr' },
+    { id: 'delivery-drivers', name: 'Delivery Drivers', priceRange: '£14-22/hr' },
+    { id: 'admin-support', name: 'Admin Support', priceRange: '£15-30/hr' },
+    { id: 'event-setup', name: 'Event Setup Crew', priceRange: '£12-20/hr' },
+    { id: 'labourers', name: 'Labourers', priceRange: '£12-18/hr' },
   ],
   'digital-services': [
-    { id: 'graphic-design', name: 'Graphic Design', icon: '🎨' },
-    { id: 'video-editing', name: 'Video Editing', icon: '🎬' },
-    { id: 'cv-writing', name: 'CV Writing', icon: '📝' },
-    { id: 'website-setup', name: 'Website Setup', icon: '🌐' },
-    { id: 'social-media', name: 'Social Media Management', icon: '📱' },
-    { id: 'data-entry', name: 'Data Entry', icon: '⌨️' },
-    { id: 'translation', name: 'Translation', icon: '🌍' },
+    { id: 'graphic-design', name: 'Graphic Design', priceRange: '£25-60/hr' },
+    { id: 'video-editing', name: 'Video Editing', priceRange: '£30-70/hr' },
+    { id: 'cv-writing', name: 'CV Writing', priceRange: '£50-150/CV' },
+    { id: 'website-setup', name: 'Website Setup', priceRange: '£200-1000/site' },
+    { id: 'social-media', name: 'Social Media Management', priceRange: '£200-600/month' },
+    { id: 'data-entry', name: 'Data Entry', priceRange: '£12-20/hr' },
+    { id: 'translation', name: 'Translation', priceRange: '£0.08-0.15/word' },
   ],
   'events-staffing': [
-    { id: 'event-staff', name: 'Event Staff', icon: '🎉' },
-    { id: 'waiters', name: 'Waiters', icon: '🍽️' },
-    { id: 'bartenders', name: 'Bartenders', icon: '🍸' },
-    { id: 'security', name: 'Security', icon: '🛡️' },
-    { id: 'dj-services', name: 'DJ Services', icon: '🎧' },
-    { id: 'photographer', name: 'Photographer', icon: '📸' },
-    { id: 'videographer', name: 'Videographer', icon: '🎥' },
-    { id: 'decoration-setup', name: 'Decoration Setup', icon: '🎈' },
+    { id: 'event-staff', name: 'Event Staff', priceRange: '£12-20/hr' },
+    { id: 'waiters', name: 'Waiters', priceRange: '£12-18/hr' },
+    { id: 'bartenders', name: 'Bartenders', priceRange: '£14-25/hr' },
+    { id: 'security', name: 'Security', priceRange: '£15-25/hr' },
+    { id: 'dj-services', name: 'DJ Services', priceRange: '£150-400/event' },
+    { id: 'photographer', name: 'Photographer', priceRange: '£100-300/hr' },
+    { id: 'videographer', name: 'Videographer', priceRange: '£150-400/hr' },
+    { id: 'decoration-setup', name: 'Decoration Setup', priceRange: '£15-30/hr' },
   ],
 };
+
+// Popular services by UK region (based on postcode prefix)
+const POPULAR_BY_REGION = {
+  // London areas
+  'SW': ['cleaning', 'handyman', 'tutoring', 'pets'],
+  'SE': ['cleaning', 'moving', 'handyman', 'gardening'],
+  'E': ['cleaning', 'moving', 'delivery-drivers', 'handyman'],
+  'W': ['cleaning', 'tutoring', 'pets', 'personal-assistant'],
+  'N': ['cleaning', 'handyman', 'tutoring', 'moving'],
+  'NW': ['cleaning', 'tutoring', 'pets', 'childcare'],
+  'EC': ['admin-support', 'delivery-drivers', 'cleaning', 'event-staff'],
+  'WC': ['cleaning', 'admin-support', 'event-staff', 'waiters'],
+  // Other major cities
+  'M': ['cleaning', 'handyman', 'moving', 'delivery-drivers'], // Manchester
+  'B': ['cleaning', 'handyman', 'gardening', 'mobile-mechanic'], // Birmingham
+  'L': ['cleaning', 'handyman', 'moving', 'pets'], // Liverpool
+  'LS': ['cleaning', 'handyman', 'tutoring', 'moving'], // Leeds
+  'S': ['cleaning', 'handyman', 'gardening', 'mobile-mechanic'], // Sheffield
+  'BS': ['cleaning', 'handyman', 'gardening', 'moving'], // Bristol
+  'G': ['cleaning', 'handyman', 'moving', 'gardening'], // Glasgow
+  'EH': ['cleaning', 'handyman', 'tutoring', 'moving'], // Edinburgh
+  'CF': ['cleaning', 'handyman', 'gardening', 'moving'], // Cardiff
+  'BT': ['cleaning', 'handyman', 'gardening', 'plumbing'], // Belfast
+  // Default for other areas
+  'default': ['cleaning', 'handyman', 'gardening', 'moving']
+};
+
+// Get all subcategories as flat array for lookup
+const ALL_SUBCATEGORIES = Object.values(SUBCATEGORIES).flat();
 
 const SAMPLE_HELPERS = [
   {
@@ -207,6 +304,22 @@ export default function LandingPage() {
   const [postcode, setPostcode] = useState('');
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
+  const [popularServices, setPopularServices] = useState([]);
+
+  // Update popular services when postcode changes
+  useEffect(() => {
+    if (postcode.length >= 1) {
+      const prefix = postcode.toUpperCase().replace(/[0-9]/g, '').substring(0, 2);
+      const popularIds = POPULAR_BY_REGION[prefix] || POPULAR_BY_REGION['default'];
+      const services = popularIds.map(id => ALL_SUBCATEGORIES.find(s => s.id === id)).filter(Boolean);
+      setPopularServices(services);
+    } else {
+      // Default popular services
+      const defaultIds = ['cleaning', 'handyman', 'tutoring', 'pets'];
+      const services = defaultIds.map(id => ALL_SUBCATEGORIES.find(s => s.id === id)).filter(Boolean);
+      setPopularServices(services);
+    }
+  }, [postcode]);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -221,6 +334,10 @@ export default function LandingPage() {
   const handleSubcategoryClick = (subcategory) => {
     setCategoryModalOpen(false);
     navigate(`/browse?category=${subcategory.id}&postcode=${encodeURIComponent(postcode)}`);
+  };
+
+  const handlePopularClick = (service) => {
+    navigate(`/browse?category=${service.id}&postcode=${encodeURIComponent(postcode)}`);
   };
 
   return (
@@ -258,7 +375,7 @@ export default function LandingPage() {
                     type="text"
                     placeholder="Enter postcode"
                     value={postcode}
-                    onChange={(e) => setPostcode(e.target.value)}
+                    onChange={(e) => setPostcode(e.target.value.toUpperCase())}
                     className="pl-12 h-14 rounded-2xl border-slate-200 text-base"
                   />
                 </div>
@@ -291,6 +408,41 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Popular in Your Area Section */}
+      {popularServices.length > 0 && (
+        <section className="py-8 bg-gradient-to-b from-white to-[#F9FAFB]">
+          <div className="container-app">
+            <div className="flex items-center gap-2 mb-4">
+              <TrendingUp className="h-5 w-5 text-[#FF5A5F]" />
+              <h2 className="text-lg font-semibold text-[#0F172A]">
+                Popular {postcode ? `in ${postcode.split(' ')[0]}` : 'near you'}
+              </h2>
+            </div>
+            <div className="flex gap-3 overflow-x-auto pb-2 -mx-4 px-4 sm:mx-0 sm:px-0 sm:flex-wrap">
+              {popularServices.map((service) => {
+                const IconComponent = SUBCATEGORY_ICONS[service.id] || Wrench;
+                return (
+                  <button
+                    key={service.id}
+                    data-testid={`popular-${service.id}`}
+                    onClick={() => handlePopularClick(service)}
+                    className="flex items-center gap-3 px-4 py-3 bg-white border border-slate-200 rounded-xl hover:border-[#0052CC] hover:shadow-md transition-all whitespace-nowrap group"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center group-hover:bg-[#0052CC]/10 transition-colors">
+                      <IconComponent className="h-5 w-5 text-[#64748B] group-hover:text-[#0052CC]" />
+                    </div>
+                    <div className="text-left">
+                      <p className="font-medium text-[#0F172A] text-sm">{service.name}</p>
+                      <p className="text-xs text-[#10B981]">{service.priceRange}</p>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
+
       {/* Main Categories Section */}
       <section className="py-10 sm:py-16">
         <div className="container-app">
@@ -319,7 +471,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Category Modal - Subcategories */}
+      {/* Category Modal - Subcategories with Icons */}
       <Dialog open={categoryModalOpen} onOpenChange={setCategoryModalOpen}>
         <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-hidden flex flex-col">
           <DialogHeader className="pb-4 border-b border-slate-100">
@@ -339,19 +491,25 @@ export default function LandingPage() {
           <div className="overflow-y-auto flex-1 py-4">
             {selectedCategory && (
               <div className="grid grid-cols-2 gap-3">
-                {SUBCATEGORIES[selectedCategory.id]?.map((sub) => (
-                  <button
-                    key={sub.id}
-                    data-testid={`subcategory-${sub.id}`}
-                    onClick={() => handleSubcategoryClick(sub)}
-                    className={`p-4 rounded-xl border-2 border-slate-100 hover:border-[#0052CC] hover:bg-[#0052CC]/5 transition-all text-left group`}
-                  >
-                    <span className="text-2xl mb-2 block">{sub.icon}</span>
-                    <span className="font-medium text-[#0F172A] text-sm block group-hover:text-[#0052CC]">
-                      {sub.name}
-                    </span>
-                  </button>
-                ))}
+                {SUBCATEGORIES[selectedCategory.id]?.map((sub) => {
+                  const IconComponent = SUBCATEGORY_ICONS[sub.id] || Wrench;
+                  return (
+                    <button
+                      key={sub.id}
+                      data-testid={`subcategory-${sub.id}`}
+                      onClick={() => handleSubcategoryClick(sub)}
+                      className="p-4 rounded-xl border-2 border-slate-100 hover:border-[#0052CC] hover:bg-[#0052CC]/5 transition-all text-left group"
+                    >
+                      <div className={`w-10 h-10 rounded-lg ${selectedCategory.lightColor} flex items-center justify-center mb-2 group-hover:scale-110 transition-transform`}>
+                        <IconComponent className={`h-5 w-5 ${selectedCategory.textColor}`} />
+                      </div>
+                      <p className="font-medium text-[#0F172A] text-sm group-hover:text-[#0052CC]">
+                        {sub.name}
+                      </p>
+                      <p className="text-xs text-[#10B981] mt-1">{sub.priceRange}</p>
+                    </button>
+                  );
+                })}
               </div>
             )}
           </div>
