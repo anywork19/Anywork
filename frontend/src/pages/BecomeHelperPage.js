@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Upload, Check, Camera, Plus, Minus, CheckCircle, Shield } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Upload, Check, Camera, Plus, Minus, CheckCircle, Shield, ChevronDown, ChevronUp } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Textarea } from '../components/ui/textarea';
@@ -10,19 +10,93 @@ import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 import { toast } from 'sonner';
 
-const CATEGORIES = [
-  { id: 'home-help', name: 'Home Help', description: 'General household tasks' },
-  { id: 'cleaning', name: 'Cleaning', description: 'House cleaning, deep clean' },
-  { id: 'pets', name: 'Pets', description: 'Dog walking, pet sitting' },
-  { id: 'tutoring', name: 'Tutoring', description: 'Academic tutoring, lessons' },
-  { id: 'driving', name: 'Driving Cover', description: 'Temporary driver roles' },
-  { id: 'moving', name: 'Moving Help', description: 'Moving, lifting, packing' },
-  { id: 'tech', name: 'Tech Help', description: 'IT support, tech setup' },
-  { id: 'handyman', name: 'Handyman', description: 'Repairs, assembly, DIY' },
-  { id: 'gardening', name: 'Gardening', description: 'Garden maintenance' },
-  { id: 'childcare', name: 'Childcare', description: 'Babysitting, nanny services' },
-  { id: 'eldercare', name: 'Elder Care', description: 'Companion care, assistance' },
-  { id: 'events', name: 'Events', description: 'Party help, event support' },
+// Category groups with subcategories
+const CATEGORY_GROUPS = [
+  {
+    id: 'home-services',
+    name: 'Home Services',
+    categories: [
+      { id: 'handyman', name: 'Handyman' },
+      { id: 'plumbing', name: 'Plumbing' },
+      { id: 'electrical', name: 'Electrical Work' },
+      { id: 'painting', name: 'Painting & Decorating' },
+      { id: 'cleaning', name: 'Cleaning' },
+      { id: 'gardening', name: 'Gardening' },
+      { id: 'moving', name: 'Moving Help' },
+      { id: 'furniture-assembly', name: 'Furniture Assembly' },
+      { id: 'pressure-washing', name: 'Pressure Washing' },
+      { id: 'gutter-cleaning', name: 'Gutter Cleaning' },
+    ]
+  },
+  {
+    id: 'vehicle-services',
+    name: 'Vehicle Services',
+    categories: [
+      { id: 'mobile-mechanic', name: 'Mobile Mechanic' },
+      { id: 'car-servicing', name: 'Car Servicing' },
+      { id: 'brake-replacement', name: 'Brake & Pad Replacement' },
+      { id: 'car-diagnostics', name: 'Car Diagnostics' },
+      { id: 'battery-replacement', name: 'Battery Replacement' },
+      { id: 'tyre-fitting', name: 'Tyre Fitting (Mobile)' },
+      { id: 'jump-start', name: 'Jump Start' },
+      { id: 'car-wash', name: 'Car Wash at Home' },
+      { id: 'driving-cover', name: 'Driving Cover' },
+    ]
+  },
+  {
+    id: 'personal-services',
+    name: 'Personal Services',
+    categories: [
+      { id: 'tutoring', name: 'Tutoring' },
+      { id: 'childcare', name: 'Childcare' },
+      { id: 'eldercare', name: 'Elder Care' },
+      { id: 'pets', name: 'Pets' },
+      { id: 'personal-assistant', name: 'Personal Assistant' },
+      { id: 'grocery-pickup', name: 'Grocery Pickup' },
+      { id: 'parcel-collection', name: 'Parcel Collection' },
+      { id: 'home-help', name: 'Home Help' },
+    ]
+  },
+  {
+    id: 'business-support',
+    name: 'Business Support',
+    categories: [
+      { id: 'temporary-staff', name: 'Temporary Staff' },
+      { id: 'retail-staff', name: 'Retail Staff Cover' },
+      { id: 'warehouse-support', name: 'Warehouse Support' },
+      { id: 'delivery-drivers', name: 'Delivery Drivers' },
+      { id: 'admin-support', name: 'Admin Support' },
+      { id: 'event-setup', name: 'Event Setup Crew' },
+      { id: 'labourers', name: 'Labourers' },
+    ]
+  },
+  {
+    id: 'digital-services',
+    name: 'Digital Services',
+    categories: [
+      { id: 'graphic-design', name: 'Graphic Design' },
+      { id: 'video-editing', name: 'Video Editing' },
+      { id: 'cv-writing', name: 'CV Writing' },
+      { id: 'website-setup', name: 'Website Setup' },
+      { id: 'social-media', name: 'Social Media Management' },
+      { id: 'data-entry', name: 'Data Entry' },
+      { id: 'translation', name: 'Translation' },
+    ]
+  },
+  {
+    id: 'events-staffing',
+    name: 'Events & Staffing',
+    categories: [
+      { id: 'event-staff', name: 'Event Staff' },
+      { id: 'waiters', name: 'Waiters' },
+      { id: 'bartenders', name: 'Bartenders' },
+      { id: 'security', name: 'Security' },
+      { id: 'dj-services', name: 'DJ Services' },
+      { id: 'photographer', name: 'Photographer' },
+      { id: 'videographer', name: 'Videographer' },
+      { id: 'decoration-setup', name: 'Decoration Setup' },
+    ]
+  },
 ];
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
