@@ -19,6 +19,7 @@ import ProfileLivePage from './pages/ProfileLivePage';
 import DashboardPage from './pages/DashboardPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
 import CookiePolicyPage from './pages/CookiePolicyPage';
+import TermsConditionsPage from './pages/TermsConditionsPage';
 import api from './lib/api';
 
 // AppRouter component to handle auth callback detection during render
@@ -55,6 +56,7 @@ function AppRouter() {
           <Route path="/settings" element={<DashboardPage />} />
           <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
           <Route path="/cookie-policy" element={<CookiePolicyPage />} />
+          <Route path="/terms" element={<TermsConditionsPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>

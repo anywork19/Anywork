@@ -67,7 +67,7 @@ export default function Footer() {
             <ul className="space-y-3">
               <li>
                 <Link to="/terms" className="text-slate-400 hover:text-white transition-colors">
-                  Terms of Service
+                  Terms & Conditions
                 </Link>
               </li>
               <li>
