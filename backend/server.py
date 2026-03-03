@@ -444,15 +444,30 @@ async def list_helpers(
     if insured_only:
         query["insured"] = True
     
-    helpers = await db.helper_profiles.find(query, {"_id": 0}).skip(skip).limit(limit).to_list(limit)
+    # Use aggregation pipeline to join helpers with users in a single query (fixes N+1)
+    pipeline = [
+        {"$match": query},
+        {"$skip": skip},
+        {"$limit": limit},
+        {
+            "$lookup": {
+                "from": "users",
+                "localField": "user_id",
+                "foreignField": "user_id",
+                "as": "user_data"
+            }
+        },
+        {"$unwind": {"path": "$user_data", "preserveNullAndEmptyArrays": True}},
+        {
+            "$addFields": {
+                "user_name": {"$ifNull": ["$user_data.name", ""]},
+                "user_picture": "$user_data.picture"
+            }
+        },
+        {"$project": {"user_data": 0, "_id": 0}}
+    ]
     
-    # Enrich with user data
-    for helper in helpers:
-        user = await db.users.find_one({"user_id": helper["user_id"]}, {"_id": 0, "password_hash": 0})
-        if user:
-            helper["user_name"] = user.get("name", "")
-            helper["user_picture"] = user.get("picture")
-    
+    helpers = await db.helper_profiles.aggregate(pipeline).to_list(limit)
     total = await db.helper_profiles.count_documents(query)
     return {"helpers": helpers, "total": total}
 
