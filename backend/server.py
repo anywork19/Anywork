@@ -801,43 +801,57 @@ async def create_checkout(data: CheckoutRequest, user: User = Depends(get_curren
     if booking["customer_id"] != user.user_id:
         raise HTTPException(status_code=403, detail="Not your booking")
     
+    # Get helper info for the transaction
+    helper = await db.helper_profiles.find_one({"helper_id": booking["helper_id"]}, {"_id": 0})
+    if not helper:
+        raise HTTPException(status_code=404, detail="Helper not found")
+    
     api_key = os.environ.get('STRIPE_API_KEY')
     host_url = data.origin_url
     webhook_url = f"{host_url}/api/webhook/stripe"
     
     stripe_checkout = StripeCheckout(api_key=api_key, webhook_url=webhook_url)
     
-    amount = float(booking["total_amount"])
+    total_amount = float(booking["total_amount"])
+    platform_fee = float(booking["platform_fee"])
+    helper_amount = total_amount - platform_fee  # Amount helper will receive
+    
     success_url = f"{host_url}/booking/{data.booking_id}/success?session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url = f"{host_url}/booking/{data.booking_id}"
     
     checkout_request = CheckoutSessionRequest(
-        amount=amount,
+        amount=total_amount,
         currency="gbp",
         success_url=success_url,
         cancel_url=cancel_url,
         metadata={
             "booking_id": data.booking_id,
-            "user_id": user.user_id
+            "user_id": user.user_id,
+            "helper_id": booking["helper_id"]
         }
     )
     
     session = await stripe_checkout.create_checkout_session(checkout_request)
     
-    # Create payment transaction record
+    # Create payment transaction record with escrow info
     transaction_id = f"txn_{uuid.uuid4().hex[:12]}"
     await db.payment_transactions.insert_one({
         "transaction_id": transaction_id,
         "booking_id": data.booking_id,
-        "user_id": user.user_id,
+        "customer_id": user.user_id,
+        "helper_id": booking["helper_id"],
+        "helper_user_id": helper["user_id"],
         "session_id": session.session_id,
-        "amount": amount,
+        "amount": total_amount,
+        "platform_fee": platform_fee,
+        "helper_amount": helper_amount,
         "currency": "gbp",
-        "payment_status": "pending",
+        "payment_status": "pending",  # Will become "held" when paid
+        "payout_status": "pending",   # Will become "completed" when paid to helper
         "created_at": datetime.now(timezone.utc).isoformat()
     })
     
-    return {"url": session.url, "session_id": session.session_id}
+    return {"url": session.url, "session_id": session.session_id, "transaction_id": transaction_id}
 
 @api_router.get("/payments/status/{session_id}")
 async def get_payment_status(session_id: str, user: User = Depends(get_current_user)):
@@ -848,13 +862,16 @@ async def get_payment_status(session_id: str, user: User = Depends(get_current_u
     
     status = await stripe_checkout.get_checkout_status(session_id)
     
-    # Update transaction if paid
+    # Update transaction if paid - money is now HELD in platform account
     if status.payment_status == "paid":
         txn = await db.payment_transactions.find_one({"session_id": session_id}, {"_id": 0})
-        if txn and txn.get("payment_status") != "paid":
+        if txn and txn.get("payment_status") not in ["paid", "held"]:
             await db.payment_transactions.update_one(
                 {"session_id": session_id},
-                {"$set": {"payment_status": "paid"}}
+                {"$set": {
+                    "payment_status": "held",  # Money held in platform account
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }}
             )
             await db.bookings.update_one(
                 {"booking_id": txn["booking_id"]},
@@ -883,10 +900,13 @@ async def stripe_webhook(request: Request):
         
         if event.payment_status == "paid":
             txn = await db.payment_transactions.find_one({"session_id": event.session_id}, {"_id": 0})
-            if txn and txn.get("payment_status") != "paid":
+            if txn and txn.get("payment_status") not in ["paid", "held"]:
                 await db.payment_transactions.update_one(
                     {"session_id": event.session_id},
-                    {"$set": {"payment_status": "paid"}}
+                    {"$set": {
+                        "payment_status": "held",
+                        "updated_at": datetime.now(timezone.utc).isoformat()
+                    }}
                 )
                 await db.bookings.update_one(
                     {"booking_id": txn["booking_id"]},
@@ -897,6 +917,292 @@ async def stripe_webhook(request: Request):
     except Exception as e:
         logger.error(f"Webhook error: {e}")
         return {"received": False, "error": str(e)}
+
+# ==================== ADMIN PAYMENT MANAGEMENT ====================
+
+@api_router.get("/admin/payments")
+async def get_all_payments(
+    status: Optional[str] = None,
+    payout_status: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 50,
+    user: User = Depends(get_current_user)
+):
+    """Get all payment transactions for admin dashboard"""
+    query = {}
+    if status:
+        query["payment_status"] = status
+    if payout_status:
+        query["payout_status"] = payout_status
+    
+    # Use aggregation to join with bookings and users
+    pipeline = [
+        {"$match": query},
+        {"$sort": {"created_at": -1}},
+        {"$skip": skip},
+        {"$limit": limit},
+        {
+            "$lookup": {
+                "from": "bookings",
+                "localField": "booking_id",
+                "foreignField": "booking_id",
+                "as": "booking"
+            }
+        },
+        {"$unwind": {"path": "$booking", "preserveNullAndEmptyArrays": True}},
+        {
+            "$lookup": {
+                "from": "users",
+                "localField": "customer_id",
+                "foreignField": "user_id",
+                "as": "customer"
+            }
+        },
+        {"$unwind": {"path": "$customer", "preserveNullAndEmptyArrays": True}},
+        {
+            "$lookup": {
+                "from": "users",
+                "localField": "helper_user_id",
+                "foreignField": "user_id",
+                "as": "helper"
+            }
+        },
+        {"$unwind": {"path": "$helper", "preserveNullAndEmptyArrays": True}},
+        {
+            "$addFields": {
+                "customer_name": "$customer.name",
+                "customer_email": "$customer.email",
+                "helper_name": "$helper.name",
+                "helper_email": "$helper.email",
+                "service_type": "$booking.service_type",
+                "booking_date": "$booking.date",
+                "booking_status": "$booking.status"
+            }
+        },
+        {"$project": {"customer": 0, "helper": 0, "booking": 0, "_id": 0}}
+    ]
+    
+    transactions = await db.payment_transactions.aggregate(pipeline).to_list(limit)
+    total = await db.payment_transactions.count_documents(query)
+    
+    # Calculate summary stats
+    held_pipeline = [
+        {"$match": {"payment_status": "held", "payout_status": "pending"}},
+        {"$group": {"_id": None, "total": {"$sum": "$helper_amount"}, "count": {"$sum": 1}}}
+    ]
+    held_result = await db.payment_transactions.aggregate(held_pipeline).to_list(1)
+    held_amount = held_result[0]["total"] if held_result else 0
+    held_count = held_result[0]["count"] if held_result else 0
+    
+    released_pipeline = [
+        {"$match": {"payout_status": "completed"}},
+        {"$group": {"_id": None, "total": {"$sum": "$helper_amount"}, "count": {"$sum": 1}}}
+    ]
+    released_result = await db.payment_transactions.aggregate(released_pipeline).to_list(1)
+    released_amount = released_result[0]["total"] if released_result else 0
+    released_count = released_result[0]["count"] if released_result else 0
+    
+    platform_fees_pipeline = [
+        {"$match": {"payment_status": {"$in": ["held", "released"]}}},
+        {"$group": {"_id": None, "total": {"$sum": "$platform_fee"}}}
+    ]
+    fees_result = await db.payment_transactions.aggregate(platform_fees_pipeline).to_list(1)
+    total_fees = fees_result[0]["total"] if fees_result else 0
+    
+    return {
+        "transactions": transactions,
+        "total": total,
+        "summary": {
+            "held_amount": round(held_amount, 2),
+            "held_count": held_count,
+            "released_amount": round(released_amount, 2),
+            "released_count": released_count,
+            "platform_fees_earned": round(total_fees, 2)
+        }
+    }
+
+@api_router.get("/admin/payments/{transaction_id}")
+async def get_payment_detail(transaction_id: str, user: User = Depends(get_current_user)):
+    """Get detailed payment transaction info"""
+    txn = await db.payment_transactions.find_one({"transaction_id": transaction_id}, {"_id": 0})
+    if not txn:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    
+    # Get related booking
+    booking = await db.bookings.find_one({"booking_id": txn["booking_id"]}, {"_id": 0})
+    
+    # Get customer info
+    customer = await db.users.find_one({"user_id": txn["customer_id"]}, {"_id": 0, "password_hash": 0})
+    
+    # Get helper info
+    helper = await db.users.find_one({"user_id": txn["helper_user_id"]}, {"_id": 0, "password_hash": 0})
+    helper_profile = await db.helper_profiles.find_one({"helper_id": txn["helper_id"]}, {"_id": 0})
+    
+    return {
+        "transaction": txn,
+        "booking": booking,
+        "customer": customer,
+        "helper": helper,
+        "helper_profile": helper_profile
+    }
+
+@api_router.post("/admin/payments/{transaction_id}/release")
+async def release_payment(transaction_id: str, user: User = Depends(get_current_user)):
+    """Release held payment to helper (admin action)"""
+    txn = await db.payment_transactions.find_one({"transaction_id": transaction_id}, {"_id": 0})
+    if not txn:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    
+    if txn["payment_status"] != "held":
+        raise HTTPException(status_code=400, detail=f"Cannot release payment with status: {txn['payment_status']}")
+    
+    if txn["payout_status"] == "completed":
+        raise HTTPException(status_code=400, detail="Payment already released")
+    
+    # Update transaction status - In production, this would trigger actual bank transfer
+    await db.payment_transactions.update_one(
+        {"transaction_id": transaction_id},
+        {"$set": {
+            "payment_status": "released",
+            "payout_status": "completed",
+            "payout_date": datetime.now(timezone.utc).isoformat(),
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    # Update booking status
+    await db.bookings.update_one(
+        {"booking_id": txn["booking_id"]},
+        {"$set": {"status": "completed"}}
+    )
+    
+    # Update helper's completed jobs count
+    await db.helper_profiles.update_one(
+        {"helper_id": txn["helper_id"]},
+        {"$inc": {"jobs_completed": 1}}
+    )
+    
+    # Create payout record for tracking
+    payout_id = f"payout_{uuid.uuid4().hex[:12]}"
+    await db.payouts.insert_one({
+        "payout_id": payout_id,
+        "transaction_id": transaction_id,
+        "helper_id": txn["helper_id"],
+        "helper_user_id": txn["helper_user_id"],
+        "amount": txn["helper_amount"],
+        "currency": txn["currency"],
+        "status": "completed",
+        "released_by": user.user_id,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    
+    return {
+        "message": "Payment released successfully",
+        "payout_id": payout_id,
+        "amount": txn["helper_amount"],
+        "helper_id": txn["helper_id"]
+    }
+
+@api_router.post("/admin/payments/{transaction_id}/refund")
+async def refund_payment(transaction_id: str, user: User = Depends(get_current_user)):
+    """Refund payment to customer (admin action)"""
+    txn = await db.payment_transactions.find_one({"transaction_id": transaction_id}, {"_id": 0})
+    if not txn:
+        raise HTTPException(status_code=404, detail="Transaction not found")
+    
+    if txn["payment_status"] not in ["held", "paid"]:
+        raise HTTPException(status_code=400, detail=f"Cannot refund payment with status: {txn['payment_status']}")
+    
+    if txn["payout_status"] == "completed":
+        raise HTTPException(status_code=400, detail="Cannot refund - payment already released to helper")
+    
+    # Update transaction status - In production, this would trigger Stripe refund
+    await db.payment_transactions.update_one(
+        {"transaction_id": transaction_id},
+        {"$set": {
+            "payment_status": "refunded",
+            "payout_status": "cancelled",
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    # Update booking status
+    await db.bookings.update_one(
+        {"booking_id": txn["booking_id"]},
+        {"$set": {"status": "cancelled", "payment_status": "refunded"}}
+    )
+    
+    return {
+        "message": "Payment refunded successfully",
+        "amount": txn["amount"],
+        "customer_id": txn["customer_id"]
+    }
+
+# ==================== HELPER EARNINGS ====================
+
+@api_router.get("/helper/earnings")
+async def get_helper_earnings(user: User = Depends(get_current_user)):
+    """Get earnings summary for logged-in helper"""
+    helper_profile = await db.helper_profiles.find_one({"user_id": user.user_id}, {"_id": 0})
+    if not helper_profile:
+        raise HTTPException(status_code=404, detail="Helper profile not found")
+    
+    helper_id = helper_profile["helper_id"]
+    
+    # Get pending earnings (held)
+    pending_pipeline = [
+        {"$match": {"helper_id": helper_id, "payment_status": "held", "payout_status": "pending"}},
+        {"$group": {"_id": None, "total": {"$sum": "$helper_amount"}, "count": {"$sum": 1}}}
+    ]
+    pending_result = await db.payment_transactions.aggregate(pending_pipeline).to_list(1)
+    pending_amount = pending_result[0]["total"] if pending_result else 0
+    pending_count = pending_result[0]["count"] if pending_result else 0
+    
+    # Get released earnings (completed)
+    released_pipeline = [
+        {"$match": {"helper_id": helper_id, "payout_status": "completed"}},
+        {"$group": {"_id": None, "total": {"$sum": "$helper_amount"}, "count": {"$sum": 1}}}
+    ]
+    released_result = await db.payment_transactions.aggregate(released_pipeline).to_list(1)
+    released_amount = released_result[0]["total"] if released_result else 0
+    released_count = released_result[0]["count"] if released_result else 0
+    
+    # Get recent transactions
+    recent_txns = await db.payment_transactions.find(
+        {"helper_id": helper_id},
+        {"_id": 0}
+    ).sort("created_at", -1).limit(10).to_list(10)
+    
+    # Enrich with booking info
+    for txn in recent_txns:
+        booking = await db.bookings.find_one({"booking_id": txn["booking_id"]}, {"_id": 0})
+        if booking:
+            txn["service_type"] = booking.get("service_type")
+            txn["booking_date"] = booking.get("date")
+    
+    return {
+        "summary": {
+            "pending_amount": round(pending_amount, 2),
+            "pending_count": pending_count,
+            "total_earned": round(released_amount, 2),
+            "jobs_paid": released_count
+        },
+        "recent_transactions": recent_txns
+    }
+
+@api_router.get("/helper/payouts")
+async def get_helper_payouts(user: User = Depends(get_current_user)):
+    """Get payout history for logged-in helper"""
+    helper_profile = await db.helper_profiles.find_one({"user_id": user.user_id}, {"_id": 0})
+    if not helper_profile:
+        raise HTTPException(status_code=404, detail="Helper profile not found")
+    
+    payouts = await db.payouts.find(
+        {"helper_user_id": user.user_id},
+        {"_id": 0}
+    ).sort("created_at", -1).to_list(100)
+    
+    return {"payouts": payouts}
 
 # ==================== CATEGORIES ====================
 
