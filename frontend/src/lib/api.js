@@ -60,6 +60,16 @@ export const api = {
   createCheckout: (data) => apiClient.post('/payments/checkout', data),
   getPaymentStatus: (sessionId) => apiClient.get(`/payments/status/${sessionId}`),
 
+  // Admin Payments
+  getAdminPayments: (params) => apiClient.get('/admin/payments', { params }),
+  getAdminPaymentDetail: (transactionId) => apiClient.get(`/admin/payments/${transactionId}`),
+  releasePayment: (transactionId) => apiClient.post(`/admin/payments/${transactionId}/release`),
+  refundPayment: (transactionId) => apiClient.post(`/admin/payments/${transactionId}/refund`),
+
+  // Helper Earnings
+  getHelperEarnings: () => apiClient.get('/helper/earnings'),
+  getHelperPayouts: () => apiClient.get('/helper/payouts'),
+
   // Categories
   getCategories: () => apiClient.get('/categories'),
 

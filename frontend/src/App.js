@@ -17,6 +17,7 @@ import TrustSafetyPage from './pages/TrustSafetyPage';
 import JobPostedPage from './pages/JobPostedPage';
 import ProfileLivePage from './pages/ProfileLivePage';
 import DashboardPage from './pages/DashboardPage';
+import AdminDashboardPage from './pages/AdminDashboardPage';
 import api from './lib/api';
 
 // AppRouter component to handle auth callback detection during render
@@ -51,6 +52,7 @@ function AppRouter() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/bookings" element={<DashboardPage />} />
           <Route path="/settings" element={<DashboardPage />} />
+          <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
