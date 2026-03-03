@@ -90,6 +90,10 @@ export const api = {
   // Reports
   reportUser: (data) => apiClient.post('/reports', data),
 
+  // Admin Reports
+  getAdminReports: () => apiClient.get('/admin/reports'),
+  getAdminBookings: () => apiClient.get('/admin/bookings'),
+
   // Seed data
   seedData: () => apiClient.post('/seed-data')
 };

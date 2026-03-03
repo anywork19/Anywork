@@ -94,7 +94,7 @@ export default function HelperProfilePage() {
       navigate('/login', { state: { from: `/helpers/${helperId}` } });
       return;
     }
-    navigate(`/checkout/${helperId}`, { state: { helper, selectedDate } });
+    navigate(`/book/${helperId}`, { state: { helper, selectedDate } });
   };
 
   const handleRequestQuote = async () => {

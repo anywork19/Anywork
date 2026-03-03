@@ -13,6 +13,7 @@ import AuthPage from './pages/AuthPage';
 import AuthCallback from './pages/AuthCallback';
 import MessagesPage from './pages/MessagesPage';
 import CheckoutPage from './pages/CheckoutPage';
+import BookingRequestPage from './pages/BookingRequestPage';
 import TrustSafetyPage from './pages/TrustSafetyPage';
 import JobPostedPage from './pages/JobPostedPage';
 import ProfileLivePage from './pages/ProfileLivePage';
@@ -47,8 +48,8 @@ function AppRouter() {
           <Route path="/auth/callback" element={<AuthCallback />} />
           <Route path="/messages" element={<MessagesPage />} />
           <Route path="/messages/:conversationId" element={<MessagesPage />} />
-          <Route path="/checkout/:helperId" element={<CheckoutPage />} />
-          <Route path="/booking/:bookingId/success" element={<CheckoutPage />} />
+          <Route path="/book/:helperId" element={<BookingRequestPage />} />
+          <Route path="/checkout/:helperId" element={<BookingRequestPage />} />
           <Route path="/trust-safety" element={<TrustSafetyPage />} />
           <Route path="/job-posted" element={<JobPostedPage />} />
           <Route path="/profile-live" element={<ProfileLivePage />} />

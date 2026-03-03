@@ -279,8 +279,10 @@ class BookingCreate(BaseModel):
     time: str
     duration_hours: float
     total_amount: float
-    platform_fee: float
+    platform_fee: float = 0  # Default to 0 since we don't process payments
     notes: Optional[str] = None
+    preferred_payment: Optional[str] = "cash"  # cash or bank_transfer
+    status: Optional[str] = "pending"
 
 class Booking(BaseModel):
     model_config = ConfigDict(extra="ignore")
@@ -1452,6 +1454,17 @@ async def get_reports(
         report["reported_user"] = reported_user
     
     return {"reports": reports, "total": total}
+
+@api_router.get("/admin/bookings")
+async def get_admin_bookings(
+    skip: int = 0,
+    limit: int = 50,
+    user: User = Depends(require_admin)
+):
+    """Get all bookings (admin only)"""
+    bookings = await db.bookings.find({}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    total = await db.bookings.count_documents({})
+    return {"bookings": bookings, "total": total}
 
 # ==================== HELPER EARNINGS ====================
 
