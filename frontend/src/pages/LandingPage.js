@@ -354,6 +354,26 @@ export default function LandingPage() {
               Find trusted local helpers for any task in the UK
             </p>
 
+            {/* Two Big CTA Buttons */}
+            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-8">
+              <Button
+                data-testid="need-help-btn"
+                onClick={() => navigate('/post-job')}
+                className="h-14 px-8 bg-[#0052CC] hover:bg-[#0043A6] rounded-full text-lg font-semibold shadow-lg hover:shadow-xl transition-all"
+              >
+                I need help
+                <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+              <Button
+                data-testid="can-help-btn"
+                onClick={() => navigate('/become-helper')}
+                variant="outline"
+                className="h-14 px-8 border-2 border-slate-300 hover:border-[#0052CC] rounded-full text-lg font-semibold hover:bg-slate-50 transition-all"
+              >
+                I can help
+              </Button>
+            </div>
+
             {/* Search Bar */}
             <form onSubmit={handleSearch} className="space-y-3">
               <div className="relative">
