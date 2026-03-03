@@ -18,6 +18,7 @@ import JobPostedPage from './pages/JobPostedPage';
 import ProfileLivePage from './pages/ProfileLivePage';
 import DashboardPage from './pages/DashboardPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
+import CookiePolicyPage from './pages/CookiePolicyPage';
 import api from './lib/api';
 
 // AppRouter component to handle auth callback detection during render
@@ -53,6 +54,7 @@ function AppRouter() {
           <Route path="/bookings" element={<DashboardPage />} />
           <Route path="/settings" element={<DashboardPage />} />
           <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+          <Route path="/cookie-policy" element={<CookiePolicyPage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
