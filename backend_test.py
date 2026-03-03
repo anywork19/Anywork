@@ -78,7 +78,58 @@ class AnyWorkAPITester:
 
     def test_categories(self):
         """Test categories endpoint"""
-        return self.run_test("Get Categories", "GET", "api/categories", 200)
+        success, response = self.run_test("Get Categories", "GET", "api/categories", 200)
+        if success:
+            categories = response.get('categories', [])
+            groups = response.get('groups', [])
+            self.log(f"   Found {len(categories)} categories and {len(groups)} groups")
+            
+            # Check if categories have price_range field
+            if categories:
+                sample_category = categories[0]
+                if 'price_range' in sample_category:
+                    self.log(f"   ✅ Categories include pricing: {sample_category['price_range']}")
+                else:
+                    self.log(f"   ❌ Categories missing price_range field")
+        return success, response
+
+    def test_category_groups(self):
+        """Test category groups endpoint"""
+        return self.run_test("Get Category Groups", "GET", "api/categories/groups", 200)
+
+    def test_categories_by_group(self):
+        """Test getting categories by group"""
+        return self.run_test("Get Home Services Categories", "GET", "api/categories/group/home-services", 200)
+
+    def test_popular_categories_sw1(self):
+        """Test popular categories for SW1 postcode"""
+        success, response = self.run_test("Get Popular Categories SW1", "GET", "api/categories/popular/SW1", 200)
+        if success:
+            categories = response.get('categories', [])
+            region = response.get('region', '')
+            self.log(f"   Found {len(categories)} popular services for region {region}")
+            if categories:
+                sample_service = categories[0]
+                self.log(f"   Sample popular service: {sample_service.get('name')} - {sample_service.get('price_range')}")
+        return success, response
+
+    def test_popular_categories_m1(self):
+        """Test popular categories for M1 postcode (Manchester)"""
+        success, response = self.run_test("Get Popular Categories M1", "GET", "api/categories/popular/M1", 200)
+        if success:
+            categories = response.get('categories', [])
+            region = response.get('region', '')
+            self.log(f"   Found {len(categories)} popular services for region {region}")
+        return success, response
+
+    def test_popular_categories_l1(self):
+        """Test popular categories for L1 postcode (Liverpool)"""
+        success, response = self.run_test("Get Popular Categories L1", "GET", "api/categories/popular/L1", 200)
+        if success:
+            categories = response.get('categories', [])
+            region = response.get('region', '')
+            self.log(f"   Found {len(categories)} popular services for region {region}")
+        return success, response
 
     def test_seed_data(self):
         """Test seeding sample data"""
