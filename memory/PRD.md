@@ -68,6 +68,10 @@ Create a premium, modern UK-focused marketplace website called "AnyWork" that co
 - ✅ **Review System**: Star ratings + comments, auto-updates helper rating average
 - ✅ **Report User**: 7 report reasons (inappropriate, fraud, harassment, fake profile, no show, poor service, other)
 - ✅ **Map View Toggle**: MapLibre map with helper location markers showing prices
+- ✅ **Email Notifications** (MOCKED): Booking confirmations, new booking alerts, payment released emails - ready for Resend API
+- ✅ **Push Notifications**: In-app notification bell with dropdown, unread count badge
+- ✅ **Featured Helpers**: Top-rated helpers section on homepage with gold star badges
+- ✅ **Seasonal Pricing**: "In demand this month" section showing high-demand services with % indicators
 
 ### Features
 - ✅ Responsive design (mobile-first)
@@ -90,16 +94,20 @@ Create a premium, modern UK-focused marketplace website called "AnyWork" that co
 - Review/rating system ✅
 - Report User functionality ✅
 - Map view toggle ✅
+- Email notifications ✅ (MOCKED - ready for Resend API key)
+- Push notifications ✅
+- Featured helpers ✅
+- Seasonal pricing ✅
 
 ### P1 (High Priority)
-- Email notifications for bookings
-- Push notifications
-- Helper verification flow
+- Enable real email sending (add Resend API key)
+- Helper verification document upload flow
+- Booking calendar sync
 
 ### P2 (Medium Priority)
-- Featured helpers section on homepage
-- Seasonal pricing indicators
-- Advanced availability calendar
+- Advanced availability calendar management
+- Customer booking history
+- Helper analytics dashboard
 
 ### P3 (Low Priority/Future)
 - Mobile app (React Native)
