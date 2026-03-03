@@ -651,13 +651,23 @@ async def create_review(data: ReviewCreate, user: User = Depends(get_current_use
     }
     await db.reviews.insert_one(review_doc)
     
-    # Update helper rating
-    reviews = await db.reviews.find({"helper_id": data.helper_id}, {"_id": 0}).to_list(1000)
-    if reviews:
-        avg_rating = sum(r["rating"] for r in reviews) / len(reviews)
+    # Use aggregation to calculate average rating efficiently (fixes unbounded query)
+    pipeline = [
+        {"$match": {"helper_id": data.helper_id}},
+        {"$group": {
+            "_id": None,
+            "avg_rating": {"$avg": "$rating"},
+            "total_reviews": {"$sum": 1}
+        }}
+    ]
+    result = await db.reviews.aggregate(pipeline).to_list(1)
+    
+    if result:
+        avg_rating = round(result[0]["avg_rating"], 1)
+        total_reviews = result[0]["total_reviews"]
         await db.helper_profiles.update_one(
             {"helper_id": data.helper_id},
-            {"$set": {"rating": round(avg_rating, 1), "total_reviews": len(reviews)}}
+            {"$set": {"rating": avg_rating, "total_reviews": total_reviews}}
         )
     
     review_doc.pop("_id", None)
