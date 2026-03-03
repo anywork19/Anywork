@@ -198,6 +198,27 @@ class CheckoutRequest(BaseModel):
     booking_id: str
     origin_url: str
 
+class PayoutRequest(BaseModel):
+    transaction_id: str
+    
+class PaymentTransaction(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    transaction_id: str
+    booking_id: str
+    customer_id: str
+    helper_id: str
+    helper_user_id: str
+    amount: float
+    platform_fee: float
+    helper_amount: float  # Amount to be paid to helper
+    currency: str = "gbp"
+    payment_status: str = "pending"  # pending, paid, held, released, refunded
+    payout_status: str = "pending"  # pending, processing, completed, failed
+    session_id: Optional[str] = None
+    payout_date: Optional[str] = None
+    created_at: str
+    updated_at: Optional[str] = None
+
 # ==================== AUTH HELPERS ====================
 
 def hash_password(password: str) -> str:
