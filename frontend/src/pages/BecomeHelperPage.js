@@ -300,36 +300,41 @@ export default function BecomeHelperPage() {
                 <Label className="text-[#0F172A] font-medium mb-4 block">
                   What services can you offer? (Select all that apply)
                 </Label>
-                <div className="grid sm:grid-cols-2 gap-3">
-                  {CATEGORIES.map(category => (
-                    <div
-                      key={category.id}
-                      data-testid={`category-${category.id}`}
-                      onClick={() => toggleCategory(category.id)}
-                      className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
-                        formData.categories.includes(category.id)
-                          ? 'border-[#0052CC] bg-[#0052CC]/5'
-                          : 'border-slate-200 hover:border-slate-300'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-[#0F172A]">{category.name}</p>
-                          <p className="text-sm text-[#64748B]">{category.description}</p>
-                        </div>
-                        <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center ${
-                          formData.categories.includes(category.id)
-                            ? 'border-[#0052CC] bg-[#0052CC]'
-                            : 'border-slate-300'
-                        }`}>
-                          {formData.categories.includes(category.id) && (
-                            <Check className="h-4 w-4 text-white" />
-                          )}
-                        </div>
+                <div className="space-y-4">
+                  {CATEGORY_GROUPS.map(group => (
+                    <div key={group.id} className="border border-slate-200 rounded-xl overflow-hidden">
+                      <div className="bg-slate-50 px-4 py-3 font-semibold text-[#0F172A] text-sm">
+                        {group.name}
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 p-3">
+                        {group.categories.map(category => (
+                          <div
+                            key={category.id}
+                            data-testid={`category-${category.id}`}
+                            onClick={() => toggleCategory(category.id)}
+                            className={`p-3 rounded-lg border cursor-pointer transition-all text-sm ${
+                              formData.categories.includes(category.id)
+                                ? 'border-[#0052CC] bg-[#0052CC]/5'
+                                : 'border-slate-100 hover:border-slate-300'
+                            }`}
+                          >
+                            <div className="flex items-center justify-between">
+                              <span className={`${formData.categories.includes(category.id) ? 'text-[#0052CC] font-medium' : 'text-[#0F172A]'}`}>
+                                {category.name}
+                              </span>
+                              {formData.categories.includes(category.id) && (
+                                <Check className="h-4 w-4 text-[#0052CC]" />
+                              )}
+                            </div>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   ))}
                 </div>
+                <p className="text-sm text-[#64748B] mt-4">
+                  Selected: {formData.categories.length} service{formData.categories.length !== 1 ? 's' : ''}
+                </p>
               </div>
             </div>
           )}
