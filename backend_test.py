@@ -299,6 +299,11 @@ class AnyWorkAPITester:
         # Basic API tests
         self.test_root_endpoint()
         self.test_categories()
+        self.test_category_groups()
+        self.test_categories_by_group()
+        self.test_popular_categories_sw1()
+        self.test_popular_categories_m1()
+        self.test_popular_categories_l1()
         self.test_seed_data()
         
         # Authentication tests
