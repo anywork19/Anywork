@@ -14,6 +14,7 @@ import jwt
 import bcrypt
 import socketio
 import httpx
+import asyncio
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -27,6 +28,11 @@ db = client[os.environ['DB_NAME']]
 JWT_SECRET = os.environ.get('JWT_SECRET', 'anywork_secret_key')
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_DAYS = 7
+
+# Email Config (MOCKED - set RESEND_API_KEY to enable real emails)
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY')
+SENDER_EMAIL = os.environ.get('SENDER_EMAIL', 'noreply@anywork.co.uk')
+EMAIL_ENABLED = bool(RESEND_API_KEY)
 
 # Socket.IO setup
 sio = socketio.AsyncServer(async_mode='asgi', cors_allowed_origins='*')
@@ -43,6 +49,135 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# ==================== EMAIL SERVICE (MOCKED) ====================
+
+async def send_email(to_email: str, subject: str, html_content: str) -> dict:
+    """
+    Send email using Resend API or mock if not configured.
+    Returns dict with status and details.
+    """
+    if EMAIL_ENABLED:
+        try:
+            import resend
+            resend.api_key = RESEND_API_KEY
+            params = {
+                "from": SENDER_EMAIL,
+                "to": [to_email],
+                "subject": subject,
+                "html": html_content
+            }
+            email = await asyncio.to_thread(resend.Emails.send, params)
+            logger.info(f"[EMAIL SENT] To: {to_email}, Subject: {subject}")
+            return {"status": "sent", "email_id": email.get("id")}
+        except Exception as e:
+            logger.error(f"[EMAIL ERROR] Failed to send to {to_email}: {str(e)}")
+            return {"status": "error", "error": str(e)}
+    else:
+        # MOCKED - Log what would be sent
+        logger.info(f"[EMAIL MOCKED] To: {to_email}")
+        logger.info(f"[EMAIL MOCKED] Subject: {subject}")
+        logger.info(f"[EMAIL MOCKED] Content preview: {html_content[:200]}...")
+        return {"status": "mocked", "message": "Email logged (Resend not configured)"}
+
+def get_booking_confirmation_email(booking: dict, helper_name: str, customer_name: str) -> str:
+    """Generate HTML email for booking confirmation"""
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"></head>
+    <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: #0052CC; padding: 20px; text-align: center;">
+            <h1 style="color: white; margin: 0;">AnyWork</h1>
+        </div>
+        <div style="padding: 30px; background: #f8f9fa;">
+            <h2 style="color: #0F172A;">Booking Confirmed!</h2>
+            <p style="color: #64748B;">Hi {customer_name},</p>
+            <p style="color: #64748B;">Your booking has been confirmed. Here are the details:</p>
+            
+            <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <p><strong>Service:</strong> {booking.get('service_type', 'Service').replace('-', ' ').title()}</p>
+                <p><strong>Helper:</strong> {helper_name}</p>
+                <p><strong>Date:</strong> {booking.get('date', 'TBC')}</p>
+                <p><strong>Time:</strong> {booking.get('time', 'TBC')}</p>
+                <p><strong>Duration:</strong> {booking.get('duration_hours', 0)} hours</p>
+                <p><strong>Total:</strong> £{booking.get('total_amount', 0):.2f}</p>
+            </div>
+            
+            <p style="color: #64748B;">Your payment is held securely until the job is completed.</p>
+            
+            <a href="https://anywork.co.uk/dashboard" style="display: inline-block; background: #0052CC; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 20px;">View Booking</a>
+        </div>
+        <div style="padding: 20px; text-align: center; color: #94A3B8; font-size: 12px;">
+            <p>© 2026 AnyWork Ltd. All rights reserved.</p>
+        </div>
+    </body>
+    </html>
+    """
+
+def get_payment_released_email(helper_name: str, amount: float, service_type: str) -> str:
+    """Generate HTML email for payment released to helper"""
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"></head>
+    <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: #10B981; padding: 20px; text-align: center;">
+            <h1 style="color: white; margin: 0;">AnyWork</h1>
+        </div>
+        <div style="padding: 30px; background: #f8f9fa;">
+            <h2 style="color: #0F172A;">Payment Released! 🎉</h2>
+            <p style="color: #64748B;">Hi {helper_name},</p>
+            <p style="color: #64748B;">Great news! Your payment has been released.</p>
+            
+            <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0; text-align: center;">
+                <p style="font-size: 32px; color: #10B981; font-weight: bold; margin: 0;">£{amount:.2f}</p>
+                <p style="color: #64748B; margin-top: 10px;">For: {service_type.replace('-', ' ').title()}</p>
+            </div>
+            
+            <p style="color: #64748B;">The funds will be transferred to your bank account within 1-2 business days.</p>
+            
+            <a href="https://anywork.co.uk/dashboard" style="display: inline-block; background: #10B981; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 20px;">View Earnings</a>
+        </div>
+        <div style="padding: 20px; text-align: center; color: #94A3B8; font-size: 12px;">
+            <p>© 2026 AnyWork Ltd. All rights reserved.</p>
+        </div>
+    </body>
+    </html>
+    """
+
+def get_new_booking_helper_email(helper_name: str, customer_name: str, booking: dict) -> str:
+    """Generate HTML email for helper when they get a new booking"""
+    return f"""
+    <!DOCTYPE html>
+    <html>
+    <head><meta charset="utf-8"></head>
+    <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <div style="background: #0052CC; padding: 20px; text-align: center;">
+            <h1 style="color: white; margin: 0;">AnyWork</h1>
+        </div>
+        <div style="padding: 30px; background: #f8f9fa;">
+            <h2 style="color: #0F172A;">New Booking Request!</h2>
+            <p style="color: #64748B;">Hi {helper_name},</p>
+            <p style="color: #64748B;">You have a new booking from {customer_name}!</p>
+            
+            <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                <p><strong>Service:</strong> {booking.get('service_type', 'Service').replace('-', ' ').title()}</p>
+                <p><strong>Customer:</strong> {customer_name}</p>
+                <p><strong>Date:</strong> {booking.get('date', 'TBC')}</p>
+                <p><strong>Time:</strong> {booking.get('time', 'TBC')}</p>
+                <p><strong>Duration:</strong> {booking.get('duration_hours', 0)} hours</p>
+                <p><strong>You'll earn:</strong> £{(booking.get('total_amount', 0) - booking.get('platform_fee', 0)):.2f}</p>
+            </div>
+            
+            <a href="https://anywork.co.uk/messages" style="display: inline-block; background: #0052CC; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 20px;">Contact Customer</a>
+        </div>
+        <div style="padding: 20px; text-align: center; color: #94A3B8; font-size: 12px;">
+            <p>© 2026 AnyWork Ltd. All rights reserved.</p>
+        </div>
+    </body>
+    </html>
+    """
 
 # ==================== MODELS ====================
 
@@ -492,6 +627,60 @@ async def list_helpers(
     total = await db.helper_profiles.count_documents(query)
     return {"helpers": helpers, "total": total}
 
+@api_router.get("/helpers/featured")
+async def get_featured_helpers(limit: int = 6):
+    """Get top-rated featured helpers for homepage"""
+    pipeline = [
+        {"$match": {"rating": {"$gte": 4.5}, "total_reviews": {"$gte": 5}}},
+        {"$sort": {"rating": -1, "total_reviews": -1}},
+        {"$limit": limit},
+        {
+            "$lookup": {
+                "from": "users",
+                "localField": "user_id",
+                "foreignField": "user_id",
+                "as": "user_data"
+            }
+        },
+        {"$unwind": {"path": "$user_data", "preserveNullAndEmptyArrays": True}},
+        {
+            "$addFields": {
+                "user_name": {"$ifNull": ["$user_data.name", ""]},
+                "user_picture": "$user_data.picture"
+            }
+        },
+        {"$project": {"user_data": 0, "_id": 0}}
+    ]
+    
+    helpers = await db.helper_profiles.aggregate(pipeline).to_list(limit)
+    
+    # If not enough high-rated helpers, get any helpers
+    if len(helpers) < limit:
+        additional = await db.helper_profiles.aggregate([
+            {"$match": {"helper_id": {"$nin": [h["helper_id"] for h in helpers]}}},
+            {"$sort": {"jobs_completed": -1}},
+            {"$limit": limit - len(helpers)},
+            {
+                "$lookup": {
+                    "from": "users",
+                    "localField": "user_id",
+                    "foreignField": "user_id",
+                    "as": "user_data"
+                }
+            },
+            {"$unwind": {"path": "$user_data", "preserveNullAndEmptyArrays": True}},
+            {
+                "$addFields": {
+                    "user_name": {"$ifNull": ["$user_data.name", ""]},
+                    "user_picture": "$user_data.picture"
+                }
+            },
+            {"$project": {"user_data": 0, "_id": 0}}
+        ]).to_list(limit - len(helpers))
+        helpers.extend(additional)
+    
+    return {"helpers": helpers}
+
 @api_router.get("/helpers/{helper_id}")
 async def get_helper(helper_id: str):
     helper = await db.helper_profiles.find_one({"helper_id": helper_id}, {"_id": 0})
@@ -902,6 +1091,51 @@ async def get_payment_status(session_id: str, user: User = Depends(get_current_u
                 {"booking_id": txn["booking_id"]},
                 {"$set": {"payment_status": "paid", "status": "confirmed"}}
             )
+            
+            # Send booking confirmation emails
+            booking = await db.bookings.find_one({"booking_id": txn["booking_id"]}, {"_id": 0})
+            customer = await db.users.find_one({"user_id": txn["customer_id"]}, {"_id": 0})
+            helper_profile = await db.helper_profiles.find_one({"helper_id": txn["helper_id"]}, {"_id": 0})
+            helper_user = await db.users.find_one({"user_id": txn["helper_user_id"]}, {"_id": 0})
+            
+            if booking and customer and helper_user:
+                # Email to customer
+                customer_email = get_booking_confirmation_email(
+                    booking, 
+                    helper_user.get("name", "Helper"),
+                    customer.get("name", "Customer")
+                )
+                await send_email(customer.get("email"), "Booking Confirmed - AnyWork", customer_email)
+                
+                # Email to helper
+                helper_email = get_new_booking_helper_email(
+                    helper_user.get("name", "Helper"),
+                    customer.get("name", "Customer"),
+                    booking
+                )
+                await send_email(helper_user.get("email"), "New Booking Request - AnyWork", helper_email)
+                
+                # Store notification in database
+                await db.notifications.insert_one({
+                    "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+                    "user_id": txn["customer_id"],
+                    "type": "booking_confirmed",
+                    "title": "Booking Confirmed",
+                    "message": f"Your booking with {helper_user.get('name')} has been confirmed.",
+                    "data": {"booking_id": txn["booking_id"]},
+                    "read": False,
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                })
+                await db.notifications.insert_one({
+                    "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+                    "user_id": txn["helper_user_id"],
+                    "type": "new_booking",
+                    "title": "New Booking",
+                    "message": f"You have a new booking from {customer.get('name')}.",
+                    "data": {"booking_id": txn["booking_id"]},
+                    "read": False,
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                })
     
     return {
         "status": status.status,
@@ -1130,6 +1364,29 @@ async def release_payment(transaction_id: str, user: User = Depends(require_admi
         "created_at": datetime.now(timezone.utc).isoformat()
     })
     
+    # Send payment released email to helper
+    helper_user = await db.users.find_one({"user_id": txn["helper_user_id"]}, {"_id": 0})
+    booking = await db.bookings.find_one({"booking_id": txn["booking_id"]}, {"_id": 0})
+    if helper_user and booking:
+        email_html = get_payment_released_email(
+            helper_user.get("name", "Helper"),
+            txn["helper_amount"],
+            booking.get("service_type", "service")
+        )
+        await send_email(helper_user.get("email"), "Payment Released - AnyWork 🎉", email_html)
+        
+        # Store notification
+        await db.notifications.insert_one({
+            "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+            "user_id": txn["helper_user_id"],
+            "type": "payment_released",
+            "title": "Payment Released!",
+            "message": f"£{txn['helper_amount']:.2f} has been released to your account.",
+            "data": {"payout_id": payout_id, "amount": txn["helper_amount"]},
+            "read": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+    
     return {
         "message": "Payment released successfully",
         "payout_id": payout_id,
@@ -1261,6 +1518,116 @@ async def get_helper_payouts(user: User = Depends(get_current_user)):
     ).sort("created_at", -1).to_list(100)
     
     return {"payouts": payouts}
+
+# ==================== NOTIFICATIONS ====================
+
+@api_router.get("/notifications")
+async def get_notifications(user: User = Depends(get_current_user), unread_only: bool = False):
+    """Get notifications for the current user"""
+    query = {"user_id": user.user_id}
+    if unread_only:
+        query["read"] = False
+    
+    notifications = await db.notifications.find(query, {"_id": 0}).sort("created_at", -1).limit(50).to_list(50)
+    unread_count = await db.notifications.count_documents({"user_id": user.user_id, "read": False})
+    
+    return {"notifications": notifications, "unread_count": unread_count}
+
+@api_router.put("/notifications/{notification_id}/read")
+async def mark_notification_read(notification_id: str, user: User = Depends(get_current_user)):
+    """Mark a notification as read"""
+    result = await db.notifications.update_one(
+        {"notification_id": notification_id, "user_id": user.user_id},
+        {"$set": {"read": True}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Notification not found")
+    return {"message": "Notification marked as read"}
+
+@api_router.put("/notifications/read-all")
+async def mark_all_notifications_read(user: User = Depends(get_current_user)):
+    """Mark all notifications as read"""
+    await db.notifications.update_many(
+        {"user_id": user.user_id, "read": False},
+        {"$set": {"read": True}}
+    )
+    return {"message": "All notifications marked as read"}
+
+# ==================== SEASONAL PRICING ====================
+
+# Seasonal pricing adjustments (month -> category -> multiplier)
+SEASONAL_PRICING = {
+    # Spring (March-May): Higher demand for gardening, cleaning
+    3: {"gardening": 1.2, "cleaning": 1.1, "pressure-washing": 1.15},
+    4: {"gardening": 1.25, "cleaning": 1.1, "pressure-washing": 1.2},
+    5: {"gardening": 1.3, "cleaning": 1.15, "pressure-washing": 1.25},
+    # Summer (June-August): Peak for outdoor services
+    6: {"gardening": 1.35, "car-wash": 1.2, "moving": 1.15, "event-staff": 1.2},
+    7: {"gardening": 1.4, "car-wash": 1.25, "moving": 1.2, "event-staff": 1.25, "childcare": 1.15},
+    8: {"gardening": 1.35, "car-wash": 1.2, "moving": 1.2, "event-staff": 1.2, "childcare": 1.2},
+    # Autumn (September-November): Back to school tutoring demand
+    9: {"tutoring": 1.2, "gutter-cleaning": 1.2, "gardening": 1.1},
+    10: {"tutoring": 1.15, "gutter-cleaning": 1.3, "gardening": 1.0},
+    11: {"tutoring": 1.1, "gutter-cleaning": 1.25, "cleaning": 1.1},
+    # Winter (December-February): Holiday and indoor focus
+    12: {"cleaning": 1.2, "event-staff": 1.35, "waiters": 1.3, "bartenders": 1.3, "decoration-setup": 1.4},
+    1: {"cleaning": 1.15, "handyman": 1.1, "plumbing": 1.15},
+    2: {"cleaning": 1.1, "handyman": 1.05, "plumbing": 1.1},
+}
+
+@api_router.get("/pricing/seasonal")
+async def get_seasonal_pricing():
+    """Get current seasonal pricing adjustments"""
+    current_month = datetime.now().month
+    adjustments = SEASONAL_PRICING.get(current_month, {})
+    
+    # Get categories with seasonal hints
+    seasonal_categories = []
+    for cat in CATEGORIES:
+        cat_data = cat.copy()
+        multiplier = adjustments.get(cat["id"], 1.0)
+        if multiplier > 1.0:
+            cat_data["seasonal_multiplier"] = multiplier
+            cat_data["seasonal_hint"] = f"High demand - prices may be {int((multiplier - 1) * 100)}% higher"
+        elif multiplier < 1.0:
+            cat_data["seasonal_multiplier"] = multiplier
+            cat_data["seasonal_hint"] = f"Low season - potential savings of {int((1 - multiplier) * 100)}%"
+        seasonal_categories.append(cat_data)
+    
+    return {
+        "month": current_month,
+        "adjustments": adjustments,
+        "categories": seasonal_categories
+    }
+
+@api_router.get("/pricing/category/{category_id}")
+async def get_category_pricing(category_id: str):
+    """Get pricing info for a specific category including seasonal adjustments"""
+    category = next((c for c in CATEGORIES if c["id"] == category_id), None)
+    if not category:
+        raise HTTPException(status_code=404, detail="Category not found")
+    
+    current_month = datetime.now().month
+    adjustments = SEASONAL_PRICING.get(current_month, {})
+    multiplier = adjustments.get(category_id, 1.0)
+    
+    result = {
+        "category": category,
+        "base_price_range": category.get("price_range"),
+        "seasonal_multiplier": multiplier,
+    }
+    
+    if multiplier > 1.0:
+        result["seasonal_status"] = "high_demand"
+        result["seasonal_hint"] = f"Peak season for {category['name']} - prices typically {int((multiplier - 1) * 100)}% higher"
+    elif multiplier < 1.0:
+        result["seasonal_status"] = "low_demand"
+        result["seasonal_hint"] = f"Off-peak for {category['name']} - potential savings available"
+    else:
+        result["seasonal_status"] = "normal"
+        result["seasonal_hint"] = "Standard pricing period"
+    
+    return result
 
 # ==================== CATEGORIES ====================
 

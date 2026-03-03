@@ -305,6 +305,37 @@ export default function LandingPage() {
   const [selectedCategory, setSelectedCategory] = useState(null);
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [popularServices, setPopularServices] = useState([]);
+  const [featuredHelpers, setFeaturedHelpers] = useState([]);
+  const [seasonalCategories, setSeasonalCategories] = useState([]);
+  const [loadingFeatured, setLoadingFeatured] = useState(true);
+
+  // Fetch featured helpers and seasonal pricing
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        // Fetch featured helpers
+        const helpersRes = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/helpers/featured?limit=4`);
+        if (helpersRes.ok) {
+          const data = await helpersRes.json();
+          setFeaturedHelpers(data.helpers || []);
+        }
+        
+        // Fetch seasonal pricing
+        const seasonalRes = await fetch(`${process.env.REACT_APP_BACKEND_URL}/api/pricing/seasonal`);
+        if (seasonalRes.ok) {
+          const data = await seasonalRes.json();
+          // Get categories with seasonal adjustments
+          const inDemand = data.categories.filter(c => c.seasonal_multiplier && c.seasonal_multiplier > 1);
+          setSeasonalCategories(inDemand.slice(0, 4));
+        }
+      } catch (error) {
+        console.error('Error fetching homepage data:', error);
+      } finally {
+        setLoadingFeatured(false);
+      }
+    };
+    fetchData();
+  }, []);
 
   // Update popular services when postcode changes
   useEffect(() => {
@@ -617,6 +648,128 @@ export default function LandingPage() {
           </div>
         </div>
       </section>
+
+      {/* Featured Helpers Section */}
+      {featuredHelpers.length > 0 && (
+        <section className="py-10 sm:py-16" data-testid="featured-helpers-section">
+          <div className="container-app">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h2 className="text-xl sm:text-2xl font-bold text-[#0F172A] mb-1">
+                  <span className="text-[#F59E0B]">★</span> Top-rated helpers
+                </h2>
+                <p className="text-sm text-[#64748B]">Exceptional service, verified reviews</p>
+              </div>
+              <Link
+                to="/browse?sort=rating"
+                className="hidden sm:flex items-center gap-1 text-[#0052CC] font-medium text-sm hover:underline"
+              >
+                View all <ChevronRight className="h-4 w-4" />
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {featuredHelpers.map((helper) => (
+                <Link
+                  key={helper.helper_id}
+                  to={`/helpers/${helper.helper_id}`}
+                  data-testid={`featured-helper-${helper.helper_id}`}
+                  className="card-base card-interactive p-4 border-2 border-[#F59E0B]/20"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="relative">
+                      {helper.user_picture ? (
+                        <img
+                          src={helper.user_picture}
+                          alt={helper.user_name}
+                          className="w-12 h-12 rounded-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-12 h-12 rounded-full bg-[#0052CC] flex items-center justify-center">
+                          <span className="text-white font-medium">
+                            {helper.user_name?.charAt(0) || 'H'}
+                          </span>
+                        </div>
+                      )}
+                      <div className="absolute -top-1 -right-1 bg-[#F59E0B] rounded-full p-0.5">
+                        <Star className="h-3 w-3 text-white fill-white" />
+                      </div>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <h3 className="font-semibold text-[#0F172A] text-sm truncate">{helper.user_name}</h3>
+                        {helper.is_verified && (
+                          <CheckCircle className="h-3.5 w-3.5 text-[#0052CC] flex-shrink-0" />
+                        )}
+                      </div>
+                      <p className="text-xs text-[#64748B] capitalize">{helper.categories?.[0]?.replace(/-/g, ' ')}</p>
+                      <div className="flex items-center gap-1 mt-1">
+                        <Star className="h-3.5 w-3.5 text-[#F59E0B] fill-[#F59E0B]" />
+                        <span className="font-medium text-xs">{helper.rating?.toFixed(1) || '5.0'}</span>
+                        <span className="text-xs text-[#94A3B8]">({helper.total_reviews || 0} reviews)</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
+                    <div className="flex items-center gap-1 text-xs text-[#10B981]">
+                      <CheckCircle className="h-3.5 w-3.5" />
+                      <span>{helper.jobs_completed || 0} jobs done</span>
+                    </div>
+                    <p className="font-semibold text-[#0F172A] text-sm">£{helper.hourly_rate}/hr</p>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Seasonal Demand Section */}
+      {seasonalCategories.length > 0 && (
+        <section className="py-10 sm:py-16 bg-white" data-testid="seasonal-section">
+          <div className="container-app">
+            <div className="max-w-3xl mx-auto">
+              <div className="text-center mb-8">
+                <Badge className="bg-amber-100 text-amber-700 mb-3">
+                  <TrendingUp className="h-3 w-3 mr-1" /> High Demand
+                </Badge>
+                <h2 className="text-xl sm:text-2xl font-bold text-[#0F172A] mb-2">In demand this month</h2>
+                <p className="text-sm text-[#64748B]">Popular services right now - book early to secure the best helpers</p>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                {seasonalCategories.map((category) => {
+                  const IconComponent = SUBCATEGORY_ICONS[category.id] || Briefcase;
+                  return (
+                    <button
+                      key={category.id}
+                      onClick={() => navigate(`/browse?category=${category.id}`)}
+                      className="p-4 rounded-xl bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200/50 hover:shadow-md transition-all text-left"
+                      data-testid={`seasonal-${category.id}`}
+                    >
+                      <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center mb-3">
+                        <IconComponent className="h-5 w-5 text-amber-600" />
+                      </div>
+                      <h3 className="font-semibold text-[#0F172A] text-sm mb-1">{category.name}</h3>
+                      <p className="text-xs text-[#64748B]">{category.price_range}</p>
+                      {category.seasonal_multiplier > 1 && (
+                        <p className="text-xs text-amber-600 mt-2 flex items-center gap-1">
+                          <TrendingUp className="h-3 w-3" />
+                          +{Math.round((category.seasonal_multiplier - 1) * 100)}% demand
+                        </p>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <p className="text-center text-xs text-[#94A3B8] mt-6">
+                Prices may vary based on seasonal demand. Book in advance for the best rates.
+              </p>
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* How it Works */}
       <section className="py-10 sm:py-16">

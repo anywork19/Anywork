@@ -3,6 +3,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Menu, X, User, LogOut, MessageCircle, Briefcase, Settings, ChevronDown } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { useAuth } from '../context/AuthContext';
+import NotificationBell from './NotificationBell';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -77,6 +78,8 @@ export default function Header() {
           <div className="hidden md:flex items-center gap-4">
             {isAuthenticated ? (
               <>
+                <NotificationBell />
+                
                 <Link to="/messages" data-testid="nav-messages">
                   <Button variant="ghost" size="icon" className="relative">
                     <MessageCircle className="h-5 w-5 text-[#64748B]" />

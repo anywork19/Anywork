@@ -72,6 +72,16 @@ export const api = {
 
   // Categories
   getCategories: () => apiClient.get('/categories'),
+  getSeasonalPricing: () => apiClient.get('/pricing/seasonal'),
+  getCategoryPricing: (categoryId) => apiClient.get(`/pricing/category/${categoryId}`),
+
+  // Featured Helpers
+  getFeaturedHelpers: (limit = 6) => apiClient.get('/helpers/featured', { params: { limit } }),
+
+  // Notifications
+  getNotifications: (unreadOnly = false) => apiClient.get('/notifications', { params: { unread_only: unreadOnly } }),
+  markNotificationRead: (notificationId) => apiClient.put(`/notifications/${notificationId}/read`),
+  markAllNotificationsRead: () => apiClient.put('/notifications/read-all'),
 
   // Reviews
   createReview: (data) => apiClient.post('/reviews', data),
