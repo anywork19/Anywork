@@ -889,64 +889,88 @@ CATEGORY_GROUPS = [
     {"id": "events-staffing", "name": "Events & Staffing", "icon": "PartyPopper"},
 ]
 
-# All subcategories with their parent groups
+# All subcategories with their parent groups and pricing guidance
 CATEGORIES = [
     # Home Services
-    {"id": "handyman", "name": "Handyman", "group": "home-services", "icon": "Wrench"},
-    {"id": "plumbing", "name": "Plumbing", "group": "home-services", "icon": "Droplet"},
-    {"id": "electrical", "name": "Electrical Work", "group": "home-services", "icon": "Zap"},
-    {"id": "painting", "name": "Painting & Decorating", "group": "home-services", "icon": "Paintbrush"},
-    {"id": "cleaning", "name": "Cleaning", "group": "home-services", "icon": "Sparkles"},
-    {"id": "gardening", "name": "Gardening", "group": "home-services", "icon": "Flower2"},
-    {"id": "moving", "name": "Moving Help", "group": "home-services", "icon": "Truck"},
-    {"id": "furniture-assembly", "name": "Furniture Assembly", "group": "home-services", "icon": "Armchair"},
-    {"id": "pressure-washing", "name": "Pressure Washing", "group": "home-services", "icon": "Droplets"},
-    {"id": "gutter-cleaning", "name": "Gutter Cleaning", "group": "home-services", "icon": "Home"},
+    {"id": "handyman", "name": "Handyman", "group": "home-services", "icon": "Wrench", "price_range": "£25-45/hr"},
+    {"id": "plumbing", "name": "Plumbing", "group": "home-services", "icon": "Droplet", "price_range": "£40-70/hr"},
+    {"id": "electrical", "name": "Electrical Work", "group": "home-services", "icon": "Zap", "price_range": "£45-75/hr"},
+    {"id": "painting", "name": "Painting & Decorating", "group": "home-services", "icon": "Paintbrush", "price_range": "£20-35/hr"},
+    {"id": "cleaning", "name": "Cleaning", "group": "home-services", "icon": "Sparkles", "price_range": "£12-20/hr"},
+    {"id": "gardening", "name": "Gardening", "group": "home-services", "icon": "Flower2", "price_range": "£15-30/hr"},
+    {"id": "moving", "name": "Moving Help", "group": "home-services", "icon": "Truck", "price_range": "£20-35/hr"},
+    {"id": "furniture-assembly", "name": "Furniture Assembly", "group": "home-services", "icon": "Armchair", "price_range": "£25-40/hr"},
+    {"id": "pressure-washing", "name": "Pressure Washing", "group": "home-services", "icon": "Droplets", "price_range": "£30-50/hr"},
+    {"id": "gutter-cleaning", "name": "Gutter Cleaning", "group": "home-services", "icon": "Home", "price_range": "£80-150/job"},
     # Vehicle Services
-    {"id": "mobile-mechanic", "name": "Mobile Mechanic", "group": "vehicle-services", "icon": "Wrench"},
-    {"id": "car-servicing", "name": "Car Servicing", "group": "vehicle-services", "icon": "Car"},
-    {"id": "brake-replacement", "name": "Brake & Pad Replacement", "group": "vehicle-services", "icon": "CircleStop"},
-    {"id": "car-diagnostics", "name": "Car Diagnostics", "group": "vehicle-services", "icon": "Search"},
-    {"id": "battery-replacement", "name": "Battery Replacement", "group": "vehicle-services", "icon": "Battery"},
-    {"id": "tyre-fitting", "name": "Tyre Fitting (Mobile)", "group": "vehicle-services", "icon": "Circle"},
-    {"id": "jump-start", "name": "Jump Start", "group": "vehicle-services", "icon": "Zap"},
-    {"id": "car-wash", "name": "Car Wash at Home", "group": "vehicle-services", "icon": "Droplet"},
-    {"id": "driving-cover", "name": "Driving Cover", "group": "vehicle-services", "icon": "Car"},
+    {"id": "mobile-mechanic", "name": "Mobile Mechanic", "group": "vehicle-services", "icon": "Wrench", "price_range": "£45-80/hr"},
+    {"id": "car-servicing", "name": "Car Servicing", "group": "vehicle-services", "icon": "Car", "price_range": "£100-250/service"},
+    {"id": "brake-replacement", "name": "Brake & Pad Replacement", "group": "vehicle-services", "icon": "CircleStop", "price_range": "£120-300/job"},
+    {"id": "car-diagnostics", "name": "Car Diagnostics", "group": "vehicle-services", "icon": "Search", "price_range": "£40-80/check"},
+    {"id": "battery-replacement", "name": "Battery Replacement", "group": "vehicle-services", "icon": "Battery", "price_range": "£80-180/job"},
+    {"id": "tyre-fitting", "name": "Tyre Fitting (Mobile)", "group": "vehicle-services", "icon": "Circle", "price_range": "£20-40/tyre"},
+    {"id": "jump-start", "name": "Jump Start", "group": "vehicle-services", "icon": "Zap", "price_range": "£40-70/callout"},
+    {"id": "car-wash", "name": "Car Wash at Home", "group": "vehicle-services", "icon": "Droplet", "price_range": "£20-60/wash"},
+    {"id": "driving-cover", "name": "Driving Cover", "group": "vehicle-services", "icon": "Car", "price_range": "£12-20/hr"},
     # Personal Services
-    {"id": "tutoring", "name": "Tutoring", "group": "personal-services", "icon": "GraduationCap"},
-    {"id": "childcare", "name": "Childcare", "group": "personal-services", "icon": "Baby"},
-    {"id": "eldercare", "name": "Elder Care", "group": "personal-services", "icon": "Heart"},
-    {"id": "pets", "name": "Pets", "group": "personal-services", "icon": "PawPrint"},
-    {"id": "personal-assistant", "name": "Personal Assistant", "group": "personal-services", "icon": "ClipboardList"},
-    {"id": "grocery-pickup", "name": "Grocery Pickup", "group": "personal-services", "icon": "ShoppingCart"},
-    {"id": "parcel-collection", "name": "Parcel Collection", "group": "personal-services", "icon": "Package"},
-    {"id": "home-help", "name": "Home Help", "group": "personal-services", "icon": "Home"},
+    {"id": "tutoring", "name": "Tutoring", "group": "personal-services", "icon": "GraduationCap", "price_range": "£25-60/hr"},
+    {"id": "childcare", "name": "Childcare", "group": "personal-services", "icon": "Baby", "price_range": "£10-18/hr"},
+    {"id": "eldercare", "name": "Elder Care", "group": "personal-services", "icon": "Heart", "price_range": "£12-22/hr"},
+    {"id": "pets", "name": "Pets", "group": "personal-services", "icon": "PawPrint", "price_range": "£10-20/hr"},
+    {"id": "personal-assistant", "name": "Personal Assistant", "group": "personal-services", "icon": "ClipboardList", "price_range": "£15-30/hr"},
+    {"id": "grocery-pickup", "name": "Grocery Pickup", "group": "personal-services", "icon": "ShoppingCart", "price_range": "£10-20/trip"},
+    {"id": "parcel-collection", "name": "Parcel Collection", "group": "personal-services", "icon": "Package", "price_range": "£8-15/trip"},
+    {"id": "home-help", "name": "Home Help", "group": "personal-services", "icon": "Home", "price_range": "£12-20/hr"},
     # Business Support
-    {"id": "temporary-staff", "name": "Temporary Staff", "group": "business-support", "icon": "Users"},
-    {"id": "retail-staff", "name": "Retail Staff Cover", "group": "business-support", "icon": "Store"},
-    {"id": "warehouse-support", "name": "Warehouse Support", "group": "business-support", "icon": "Warehouse"},
-    {"id": "delivery-drivers", "name": "Delivery Drivers", "group": "business-support", "icon": "Truck"},
-    {"id": "admin-support", "name": "Admin Support", "group": "business-support", "icon": "FileText"},
-    {"id": "event-setup", "name": "Event Setup Crew", "group": "business-support", "icon": "Tent"},
-    {"id": "labourers", "name": "Labourers", "group": "business-support", "icon": "HardHat"},
+    {"id": "temporary-staff", "name": "Temporary Staff", "group": "business-support", "icon": "Users", "price_range": "£12-25/hr"},
+    {"id": "retail-staff", "name": "Retail Staff Cover", "group": "business-support", "icon": "Store", "price_range": "£11-18/hr"},
+    {"id": "warehouse-support", "name": "Warehouse Support", "group": "business-support", "icon": "Warehouse", "price_range": "£12-20/hr"},
+    {"id": "delivery-drivers", "name": "Delivery Drivers", "group": "business-support", "icon": "Truck", "price_range": "£14-22/hr"},
+    {"id": "admin-support", "name": "Admin Support", "group": "business-support", "icon": "FileText", "price_range": "£15-30/hr"},
+    {"id": "event-setup", "name": "Event Setup Crew", "group": "business-support", "icon": "Tent", "price_range": "£12-20/hr"},
+    {"id": "labourers", "name": "Labourers", "group": "business-support", "icon": "HardHat", "price_range": "£12-18/hr"},
     # Digital Services
-    {"id": "graphic-design", "name": "Graphic Design", "group": "digital-services", "icon": "Palette"},
-    {"id": "video-editing", "name": "Video Editing", "group": "digital-services", "icon": "Film"},
-    {"id": "cv-writing", "name": "CV Writing", "group": "digital-services", "icon": "FileText"},
-    {"id": "website-setup", "name": "Website Setup", "group": "digital-services", "icon": "Globe"},
-    {"id": "social-media", "name": "Social Media Management", "group": "digital-services", "icon": "Share2"},
-    {"id": "data-entry", "name": "Data Entry", "group": "digital-services", "icon": "Keyboard"},
-    {"id": "translation", "name": "Translation", "group": "digital-services", "icon": "Languages"},
+    {"id": "graphic-design", "name": "Graphic Design", "group": "digital-services", "icon": "Palette", "price_range": "£25-60/hr"},
+    {"id": "video-editing", "name": "Video Editing", "group": "digital-services", "icon": "Film", "price_range": "£30-70/hr"},
+    {"id": "cv-writing", "name": "CV Writing", "group": "digital-services", "icon": "FileText", "price_range": "£50-150/CV"},
+    {"id": "website-setup", "name": "Website Setup", "group": "digital-services", "icon": "Globe", "price_range": "£200-1000/site"},
+    {"id": "social-media", "name": "Social Media Management", "group": "digital-services", "icon": "Share2", "price_range": "£200-600/month"},
+    {"id": "data-entry", "name": "Data Entry", "group": "digital-services", "icon": "Keyboard", "price_range": "£12-20/hr"},
+    {"id": "translation", "name": "Translation", "group": "digital-services", "icon": "Languages", "price_range": "£0.08-0.15/word"},
     # Events & Staffing
-    {"id": "event-staff", "name": "Event Staff", "group": "events-staffing", "icon": "Users"},
-    {"id": "waiters", "name": "Waiters", "group": "events-staffing", "icon": "UtensilsCrossed"},
-    {"id": "bartenders", "name": "Bartenders", "group": "events-staffing", "icon": "Wine"},
-    {"id": "security", "name": "Security", "group": "events-staffing", "icon": "Shield"},
-    {"id": "dj-services", "name": "DJ Services", "group": "events-staffing", "icon": "Music"},
-    {"id": "photographer", "name": "Photographer", "group": "events-staffing", "icon": "Camera"},
-    {"id": "videographer", "name": "Videographer", "group": "events-staffing", "icon": "Video"},
-    {"id": "decoration-setup", "name": "Decoration Setup", "group": "events-staffing", "icon": "Sparkles"},
+    {"id": "event-staff", "name": "Event Staff", "group": "events-staffing", "icon": "Users", "price_range": "£12-20/hr"},
+    {"id": "waiters", "name": "Waiters", "group": "events-staffing", "icon": "UtensilsCrossed", "price_range": "£12-18/hr"},
+    {"id": "bartenders", "name": "Bartenders", "group": "events-staffing", "icon": "Wine", "price_range": "£14-25/hr"},
+    {"id": "security", "name": "Security", "group": "events-staffing", "icon": "Shield", "price_range": "£15-25/hr"},
+    {"id": "dj-services", "name": "DJ Services", "group": "events-staffing", "icon": "Music", "price_range": "£150-400/event"},
+    {"id": "photographer", "name": "Photographer", "group": "events-staffing", "icon": "Camera", "price_range": "£100-300/hr"},
+    {"id": "videographer", "name": "Videographer", "group": "events-staffing", "icon": "Video", "price_range": "£150-400/hr"},
+    {"id": "decoration-setup", "name": "Decoration Setup", "group": "events-staffing", "icon": "Sparkles", "price_range": "£15-30/hr"},
 ]
+
+# Popular services by UK region (based on postcode prefix)
+POPULAR_BY_REGION = {
+    # London areas
+    "SW": ["cleaning", "handyman", "tutoring", "pets"],
+    "SE": ["cleaning", "moving", "handyman", "gardening"],
+    "E": ["cleaning", "moving", "delivery-drivers", "handyman"],
+    "W": ["cleaning", "tutoring", "pets", "personal-assistant"],
+    "N": ["cleaning", "handyman", "tutoring", "moving"],
+    "NW": ["cleaning", "tutoring", "pets", "childcare"],
+    "EC": ["admin-support", "delivery-drivers", "cleaning", "event-staff"],
+    "WC": ["cleaning", "admin-support", "event-staff", "waiters"],
+    # Other major cities
+    "M": ["cleaning", "handyman", "moving", "delivery-drivers"],
+    "B": ["cleaning", "handyman", "gardening", "mobile-mechanic"],
+    "L": ["cleaning", "handyman", "moving", "pets"],
+    "LS": ["cleaning", "handyman", "tutoring", "moving"],
+    "S": ["cleaning", "handyman", "gardening", "mobile-mechanic"],
+    "BS": ["cleaning", "handyman", "gardening", "moving"],
+    "G": ["cleaning", "handyman", "moving", "gardening"],
+    "EH": ["cleaning", "handyman", "tutoring", "moving"],
+    "CF": ["cleaning", "handyman", "gardening", "moving"],
+    "BT": ["cleaning", "handyman", "gardening", "plumbing"],
+}
 
 @api_router.get("/categories")
 async def get_categories():
@@ -960,6 +984,13 @@ async def get_category_groups():
 async def get_categories_by_group(group_id: str):
     group_categories = [c for c in CATEGORIES if c.get("group") == group_id]
     return {"categories": group_categories}
+
+@api_router.get("/categories/popular/{postcode_prefix}")
+async def get_popular_categories(postcode_prefix: str):
+    prefix = postcode_prefix.upper().replace(" ", "")[:2]
+    popular_ids = POPULAR_BY_REGION.get(prefix, ["cleaning", "handyman", "gardening", "moving"])
+    popular_categories = [c for c in CATEGORIES if c["id"] in popular_ids]
+    return {"categories": popular_categories, "region": prefix}
 
 # ==================== SOCKET.IO EVENTS ====================
 
