@@ -920,13 +920,22 @@ async def stripe_webhook(request: Request):
 
 # ==================== ADMIN PAYMENT MANAGEMENT ====================
 
+# Admin email for simple admin check
+ADMIN_EMAIL = "admin@anywork.co.uk"
+
+async def require_admin(user: User = Depends(get_current_user)) -> User:
+    """Dependency that requires the user to be an admin"""
+    if user.email != ADMIN_EMAIL:
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user
+
 @api_router.get("/admin/payments")
 async def get_all_payments(
     status: Optional[str] = None,
     payout_status: Optional[str] = None,
     skip: int = 0,
     limit: int = 50,
-    user: User = Depends(get_current_user)
+    user: User = Depends(require_admin)
 ):
     """Get all payment transactions for admin dashboard"""
     query = {}
@@ -1022,7 +1031,7 @@ async def get_all_payments(
     }
 
 @api_router.get("/admin/payments/{transaction_id}")
-async def get_payment_detail(transaction_id: str, user: User = Depends(get_current_user)):
+async def get_payment_detail(transaction_id: str, user: User = Depends(require_admin)):
     """Get detailed payment transaction info"""
     txn = await db.payment_transactions.find_one({"transaction_id": transaction_id}, {"_id": 0})
     if not txn:
@@ -1047,7 +1056,7 @@ async def get_payment_detail(transaction_id: str, user: User = Depends(get_curre
     }
 
 @api_router.post("/admin/payments/{transaction_id}/release")
-async def release_payment(transaction_id: str, user: User = Depends(get_current_user)):
+async def release_payment(transaction_id: str, user: User = Depends(require_admin)):
     """Release held payment to helper (admin action)"""
     txn = await db.payment_transactions.find_one({"transaction_id": transaction_id}, {"_id": 0})
     if not txn:
@@ -1104,7 +1113,7 @@ async def release_payment(transaction_id: str, user: User = Depends(get_current_
     }
 
 @api_router.post("/admin/payments/{transaction_id}/refund")
-async def refund_payment(transaction_id: str, user: User = Depends(get_current_user)):
+async def refund_payment(transaction_id: str, user: User = Depends(require_admin)):
     """Refund payment to customer (admin action)"""
     txn = await db.payment_transactions.find_one({"transaction_id": transaction_id}, {"_id": 0})
     if not txn:
