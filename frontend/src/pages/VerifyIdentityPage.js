@@ -12,7 +12,8 @@ import {
   User,
   FileText,
   Eye,
-  X
+  X,
+  Clock
 } from 'lucide-react';
 import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
@@ -89,6 +90,8 @@ export default function VerifyIdentityPage() {
     }
   };
 
+  const [verificationResult, setVerificationResult] = useState(null);
+
   const handleSubmit = async () => {
     if (!idType || !idFront || !selfie) {
       toast.error('Please complete all required fields');
@@ -109,15 +112,25 @@ export default function VerifyIdentityPage() {
       const idBackBase64 = idBack ? await toBase64(idBack) : null;
       const selfieBase64 = await toBase64(selfie);
 
-      await api.submitVerification({
+      const response = await api.submitVerification({
         id_type: idType,
         id_front: idFrontBase64,
         id_back: idBackBase64,
         selfie: selfieBase64
       });
 
-      toast.success('Verification submitted successfully!');
-      setStep(4); // Success step
+      // Store result for display
+      setVerificationResult(response.data);
+      
+      if (response.data.status === 'verified') {
+        toast.success('Your ID has been verified automatically!');
+      } else if (response.data.status === 'rejected') {
+        toast.error('Verification failed. Please try again with clearer photos.');
+      } else {
+        toast.success('Verification submitted for review!');
+      }
+      
+      setStep(4); // Result step
       
       // Refresh user data
       if (refreshUser) {
@@ -480,34 +493,121 @@ export default function VerifyIdentityPage() {
           </div>
         )}
 
-        {/* Step 4: Success */}
+        {/* Step 4: Result */}
         {step === 4 && (
           <div className="card-base p-8 text-center">
-            <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <CheckCircle className="h-8 w-8 text-green-600" />
-            </div>
-            <h1 className="text-2xl font-bold text-[#0F172A] mb-2">Verification Submitted!</h1>
-            <p className="text-[#64748B] mb-6">
-              Your documents are now being reviewed. This usually takes 24-48 hours. We'll notify you once verified.
-            </p>
-            
-            <div className="bg-slate-50 rounded-xl p-4 mb-6 text-left">
-              <h3 className="font-semibold text-[#0F172A] mb-2">What happens next?</h3>
-              <ul className="space-y-2 text-sm text-[#64748B]">
-                <li className="flex items-start gap-2">
-                  <span className="text-[#0052CC] font-bold">1.</span>
-                  Our team reviews your documents
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-[#0052CC] font-bold">2.</span>
-                  You'll receive a notification when verified
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-[#0052CC] font-bold">3.</span>
-                  A "Verified" badge appears on your profile
-                </li>
-              </ul>
-            </div>
+            {/* Auto-Verified Success */}
+            {verificationResult?.status === 'verified' && (
+              <>
+                <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle className="h-8 w-8 text-green-600" />
+                </div>
+                <h1 className="text-2xl font-bold text-[#0F172A] mb-2">Verified!</h1>
+                <p className="text-[#64748B] mb-6">
+                  Your identity has been verified automatically. You now have full access to AnyWork!
+                </p>
+                
+                <div className="bg-green-50 rounded-xl p-4 mb-6 text-left">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Shield className="h-5 w-5 text-green-600" />
+                    <h3 className="font-semibold text-green-800">AI Verification Complete</h3>
+                  </div>
+                  <p className="text-sm text-green-700">
+                    Our AI system has confirmed your identity with {verificationResult.ai_result?.confidence || 0}% confidence.
+                    A "Verified" badge now appears on your profile.
+                  </p>
+                </div>
+              </>
+            )}
+
+            {/* Auto-Rejected */}
+            {verificationResult?.status === 'rejected' && (
+              <>
+                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <AlertTriangle className="h-8 w-8 text-red-600" />
+                </div>
+                <h1 className="text-2xl font-bold text-[#0F172A] mb-2">Verification Failed</h1>
+                <p className="text-[#64748B] mb-6">
+                  We couldn't verify your identity automatically. The face in your selfie doesn't appear to match your ID photo.
+                </p>
+                
+                <div className="bg-red-50 rounded-xl p-4 mb-6 text-left">
+                  <h3 className="font-semibold text-red-800 mb-2">Please try again:</h3>
+                  <ul className="space-y-2 text-sm text-red-700">
+                    <li className="flex items-start gap-2">
+                      <span className="font-bold">•</span>
+                      Make sure the ID photo is clear and not blurry
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="font-bold">•</span>
+                      Take the selfie in good lighting, facing the camera directly
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="font-bold">•</span>
+                      Remove sunglasses, hats, or anything covering your face
+                    </li>
+                  </ul>
+                </div>
+                
+                <Button
+                  onClick={() => {
+                    setStep(1);
+                    setIdType('');
+                    setIdFront(null);
+                    setIdBack(null);
+                    setSelfie(null);
+                    setIdFrontPreview(null);
+                    setIdBackPreview(null);
+                    setSelfiePreview(null);
+                    setVerificationResult(null);
+                  }}
+                  className="btn-primary mr-3"
+                >
+                  Try Again
+                </Button>
+              </>
+            )}
+
+            {/* Pending Manual Review */}
+            {verificationResult?.status === 'pending' && (
+              <>
+                <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <Eye className="h-8 w-8 text-amber-600" />
+                </div>
+                <h1 className="text-2xl font-bold text-[#0F172A] mb-2">Verification Under Review</h1>
+                <p className="text-[#64748B] mb-6">
+                  Your documents have been submitted and are being reviewed by our team. This usually takes 24-48 hours.
+                </p>
+                
+                <div className="bg-amber-50 rounded-xl p-4 mb-6 text-left">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Clock className="h-5 w-5 text-amber-600" />
+                    <h3 className="font-semibold text-amber-800">Manual Review Required</h3>
+                  </div>
+                  <p className="text-sm text-amber-700">
+                    Our AI couldn't automatically verify your identity. A team member will review your documents and you'll receive a notification once complete.
+                  </p>
+                </div>
+                
+                <div className="bg-slate-50 rounded-xl p-4 mb-6 text-left">
+                  <h3 className="font-semibold text-[#0F172A] mb-2">What happens next?</h3>
+                  <ul className="space-y-2 text-sm text-[#64748B]">
+                    <li className="flex items-start gap-2">
+                      <span className="text-[#0052CC] font-bold">1.</span>
+                      Our team reviews your documents
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-[#0052CC] font-bold">2.</span>
+                      You'll receive a notification when verified
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-[#0052CC] font-bold">3.</span>
+                      A "Verified" badge appears on your profile
+                    </li>
+                  </ul>
+                </div>
+              </>
+            )}
 
             <Button
               onClick={() => navigate('/dashboard')}

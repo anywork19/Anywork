@@ -50,6 +50,124 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# AI Face Verification Config
+EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY')
+FACE_MATCH_CONFIDENCE_THRESHOLD = 80  # Auto-approve if confidence >= 80%
+
+# ==================== AI FACE VERIFICATION SERVICE ====================
+
+async def compare_faces_with_ai(id_photo_base64: str, selfie_base64: str) -> dict:
+    """
+    Use AI vision to compare the face in ID photo with the selfie.
+    Returns: {"match": bool, "confidence": int, "reason": str, "auto_approved": bool}
+    """
+    if not EMERGENT_LLM_KEY:
+        logger.warning("[FACE VERIFICATION] No EMERGENT_LLM_KEY configured, skipping AI verification")
+        return {
+            "match": None,
+            "confidence": 0,
+            "reason": "AI verification not configured",
+            "auto_approved": False
+        }
+    
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+        
+        # Initialize AI chat with vision capabilities
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"face_verify_{uuid.uuid4().hex[:8]}",
+            system_message="""You are an expert ID verification system. Your task is to compare two photos:
+1. A photo ID (passport, driving license, or national ID card)
+2. A selfie of the person
+
+Analyze both images carefully and determine if they show the SAME person.
+
+IMPORTANT: Focus on facial features like:
+- Face shape and structure
+- Eye shape and spacing
+- Nose shape
+- Mouth shape
+- Overall facial proportions
+
+Consider that:
+- The ID photo may be older
+- Lighting and angles may differ
+- Hair style/color may have changed
+- Person may have aged slightly
+
+Respond ONLY in this exact JSON format:
+{
+  "match": true/false,
+  "confidence": 0-100,
+  "reason": "Brief explanation of your decision"
+}
+
+Be strict but fair. If you cannot clearly see faces in either image, indicate low confidence."""
+        ).with_model("openai", "gpt-5.2")
+        
+        # Strip data URL prefix if present
+        def clean_base64(img_b64):
+            if ',' in img_b64:
+                return img_b64.split(',')[1]
+            return img_b64
+        
+        id_clean = clean_base64(id_photo_base64)
+        selfie_clean = clean_base64(selfie_base64)
+        
+        # Create image contents
+        id_image = ImageContent(image_base64=id_clean)
+        selfie_image = ImageContent(image_base64=selfie_clean)
+        
+        # Create message with both images
+        user_message = UserMessage(
+            text="Compare these two images. The first image is a photo ID document showing a person's face. The second image is a selfie. Determine if they show the same person.",
+            file_contents=[id_image, selfie_image]
+        )
+        
+        # Get AI response
+        response = await chat.send_message(user_message)
+        logger.info(f"[FACE VERIFICATION] AI Response: {response}")
+        
+        # Parse the JSON response
+        import json
+        import re
+        
+        # Extract JSON from response (handle markdown code blocks)
+        json_match = re.search(r'\{[^{}]*\}', response, re.DOTALL)
+        if json_match:
+            result = json.loads(json_match.group())
+            match = result.get("match", False)
+            confidence = int(result.get("confidence", 0))
+            reason = result.get("reason", "No reason provided")
+            
+            # Auto-approve if high confidence match
+            auto_approved = match and confidence >= FACE_MATCH_CONFIDENCE_THRESHOLD
+            
+            return {
+                "match": match,
+                "confidence": confidence,
+                "reason": reason,
+                "auto_approved": auto_approved
+            }
+        else:
+            logger.error(f"[FACE VERIFICATION] Could not parse AI response: {response}")
+            return {
+                "match": None,
+                "confidence": 0,
+                "reason": "Could not parse AI response",
+                "auto_approved": False
+            }
+            
+    except Exception as e:
+        logger.error(f"[FACE VERIFICATION] Error: {str(e)}")
+        return {
+            "match": None,
+            "confidence": 0,
+            "reason": f"Error during verification: {str(e)}",
+            "auto_approved": False
+        }
+
 # ==================== EMAIL SERVICE (MOCKED) ====================
 
 async def send_email(to_email: str, subject: str, html_content: str) -> dict:
@@ -1602,7 +1720,7 @@ class VerificationSubmit(BaseModel):
 
 @api_router.post("/verification/submit")
 async def submit_verification(data: VerificationSubmit, user: User = Depends(get_current_user)):
-    """Submit ID verification documents"""
+    """Submit ID verification documents with AI face comparison"""
     # Check if already verified or pending
     existing = await db.verifications.find_one({"user_id": user.user_id, "status": {"$in": ["pending", "verified"]}})
     if existing:
@@ -1612,6 +1730,32 @@ async def submit_verification(data: VerificationSubmit, user: User = Depends(get
             raise HTTPException(status_code=400, detail="Verification already in progress")
     
     verification_id = f"verify_{uuid.uuid4().hex[:12]}"
+    
+    # Run AI face comparison
+    logger.info(f"[VERIFICATION] Starting AI face comparison for user {user.user_id}")
+    face_result = await compare_faces_with_ai(data.id_front, data.selfie)
+    logger.info(f"[VERIFICATION] AI result: {face_result}")
+    
+    # Determine initial status based on AI result
+    if face_result["auto_approved"]:
+        # High confidence match - auto approve
+        initial_status = "verified"
+        notification_message = "Your ID has been verified automatically! You now have full access to AnyWork."
+        notification_type = "verification_approved"
+        notification_title = "ID Verified!"
+    elif face_result["match"] is False and face_result["confidence"] >= 70:
+        # High confidence NO match - auto reject
+        initial_status = "rejected"
+        notification_message = f"Your verification was not approved. Reason: Face in selfie does not match ID photo. Please try again with clearer photos."
+        notification_type = "verification_rejected"
+        notification_title = "Verification Not Approved"
+    else:
+        # Uncertain - flag for admin review
+        initial_status = "pending"
+        notification_message = "Your ID verification is being reviewed by our team. This usually takes 24-48 hours."
+        notification_type = "verification_submitted"
+        notification_title = "Verification Submitted"
+    
     verification_doc = {
         "verification_id": verification_id,
         "user_id": user.user_id,
@@ -1621,49 +1765,69 @@ async def submit_verification(data: VerificationSubmit, user: User = Depends(get
         "id_front": data.id_front,
         "id_back": data.id_back,
         "selfie": data.selfie,
-        "status": "pending",  # pending, verified, rejected
+        "status": initial_status,
+        "ai_verification": {
+            "match": face_result["match"],
+            "confidence": face_result["confidence"],
+            "reason": face_result["reason"],
+            "auto_processed": face_result["auto_approved"] or (face_result["match"] is False and face_result["confidence"] >= 70)
+        },
         "submitted_at": datetime.now(timezone.utc).isoformat(),
-        "reviewed_at": None,
-        "reviewed_by": None,
-        "rejection_reason": None
+        "reviewed_at": datetime.now(timezone.utc).isoformat() if initial_status != "pending" else None,
+        "reviewed_by": "AI_SYSTEM" if initial_status != "pending" else None,
+        "rejection_reason": face_result["reason"] if initial_status == "rejected" else None
     }
     
     await db.verifications.insert_one(verification_doc)
     
     # Update user's verification status
+    user_update = {"verification_status": initial_status}
+    if initial_status == "verified":
+        user_update["is_verified"] = True
     await db.users.update_one(
         {"user_id": user.user_id},
-        {"$set": {"verification_status": "pending"}}
+        {"$set": user_update}
     )
     
     # Create notification
     await db.notifications.insert_one({
         "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
         "user_id": user.user_id,
-        "type": "verification_submitted",
-        "title": "Verification Submitted",
-        "message": "Your ID verification is being reviewed. This usually takes 24-48 hours.",
+        "type": notification_type,
+        "title": notification_title,
+        "message": notification_message,
         "data": {"verification_id": verification_id},
         "read": False,
         "created_at": datetime.now(timezone.utc).isoformat()
     })
     
-    # Log email (mocked)
-    email_html = f"""
-    <!DOCTYPE html>
-    <html>
-    <body style="font-family: Arial, sans-serif;">
-        <h2>New Verification Request</h2>
-        <p>User: {user.name} ({user.email})</p>
-        <p>ID Type: {data.id_type}</p>
-        <p>Submitted: {datetime.now(timezone.utc).isoformat()}</p>
-        <p><a href="https://anywork.co.uk/admin/dashboard">Review in Admin Dashboard</a></p>
-    </body>
-    </html>
-    """
-    await send_email("admin@anywork.co.uk", f"New ID Verification - {user.name}", email_html)
+    # If pending (needs admin review), send email to admin
+    if initial_status == "pending":
+        email_html = f"""
+        <!DOCTYPE html>
+        <html>
+        <body style="font-family: Arial, sans-serif;">
+            <h2>New Verification Request - Needs Review</h2>
+            <p>User: {user.name} ({user.email})</p>
+            <p>ID Type: {data.id_type}</p>
+            <p>AI Confidence: {face_result['confidence']}%</p>
+            <p>AI Result: {face_result['reason']}</p>
+            <p>Submitted: {datetime.now(timezone.utc).isoformat()}</p>
+            <p><a href="https://anywork.co.uk/admin/dashboard">Review in Admin Dashboard</a></p>
+        </body>
+        </html>
+        """
+        await send_email("admin@anywork.co.uk", f"Verification Needs Review - {user.name}", email_html)
     
-    return {"message": "Verification submitted successfully", "verification_id": verification_id}
+    return {
+        "message": notification_message,
+        "verification_id": verification_id,
+        "status": initial_status,
+        "ai_result": {
+            "confidence": face_result["confidence"],
+            "auto_processed": face_result["auto_approved"] or (face_result["match"] is False and face_result["confidence"] >= 70)
+        }
+    }
 
 @api_router.get("/verification/status")
 async def get_verification_status(user: User = Depends(get_current_user)):
