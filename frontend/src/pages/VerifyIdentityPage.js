@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
@@ -30,7 +30,7 @@ const ID_TYPES = [
 
 export default function VerifyIdentityPage() {
   const navigate = useNavigate();
-  const { user, refreshUser } = useAuth();
+  const { user, isAuthenticated, loading: authLoading, checkAuth } = useAuth();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [idType, setIdType] = useState('');
@@ -44,6 +44,13 @@ export default function VerifyIdentityPage() {
   const idFrontRef = useRef(null);
   const idBackRef = useRef(null);
   const selfieRef = useRef(null);
+
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (!authLoading && !isAuthenticated) {
+      navigate('/login', { state: { from: '/verify-identity' } });
+    }
+  }, [authLoading, isAuthenticated, navigate]);
 
   const handleFileSelect = (e, type) => {
     const file = e.target.files[0];
@@ -133,8 +140,8 @@ export default function VerifyIdentityPage() {
       setStep(4); // Result step
       
       // Refresh user data
-      if (refreshUser) {
-        await refreshUser();
+      if (checkAuth) {
+        await checkAuth();
       }
     } catch (error) {
       toast.error(error.response?.data?.detail || 'Failed to submit verification');
@@ -142,6 +149,26 @@ export default function VerifyIdentityPage() {
       setLoading(false);
     }
   };
+
+  // Show loading while checking auth
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-[#F9FAFB] flex items-center justify-center">
+        <div className="animate-spin w-8 h-8 border-4 border-[#0052CC] border-t-transparent rounded-full" />
+      </div>
+    );
+  }
+
+  // Redirect will happen via useEffect, but show nothing while redirecting
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-[#F9FAFB] flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-[#64748B]">Redirecting to login...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Already verified
   if (user?.verification_status === 'verified') {
