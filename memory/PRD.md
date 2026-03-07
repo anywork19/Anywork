@@ -68,10 +68,12 @@ Create a premium, modern UK-focused marketplace website called "AnyWork" that co
 - ✅ **Review System**: Star ratings + comments, auto-updates helper rating average
 - ✅ **Report User**: 7 report reasons (inappropriate, fraud, harassment, fake profile, no show, poor service, other)
 - ✅ **Map View Toggle**: MapLibre map with helper location markers showing prices
-- ✅ **Email Notifications** (MOCKED): Booking confirmations, new booking alerts, payment released emails - ready for Resend API
+- ✅ **Email Notifications** (MOCKED): Booking requests, confirmations, payment released - ready for Resend API
 - ✅ **Push Notifications**: In-app notification bell with dropdown, unread count badge
 - ✅ **Featured Helpers**: Top-rated helpers section on homepage with gold star badges
 - ✅ **Seasonal Pricing**: "In demand this month" section showing high-demand services with % indicators
+- ✅ **Direct Payment Model**: Removed payment processing - users arrange payments directly (cash/bank transfer) like Vinted
+- ✅ **Helper Booking Management**: Helpers can accept/decline/complete bookings from Dashboard
 
 ### Features
 - ✅ Responsive design (mobile-first)
