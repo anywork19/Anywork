@@ -8,126 +8,124 @@ Create a premium, modern UK-focused marketplace website called "AnyWork" that co
 - **Backend**: FastAPI, Socket.IO (WebSocket for real-time chat)
 - **Database**: MongoDB
 - **Authentication**: JWT + Emergent Google OAuth
-- **Payments**: Stripe integration with Escrow system
+- **Payments**: Direct payment model (no payment processing - like Vinted)
 
 ## User Personas
 1. **Customers**: UK residents needing local help (cleaning, tutoring, handyman, etc.)
 2. **Helpers**: Individuals offering services (verified, insured options available)
-3. **Admin**: Platform administrator (admin@anywork.co.uk) for payment management
+3. **Admin**: Platform administrator (admin@anywork.co.uk) for verification management
 
 ## Core Requirements
 - Two-sided marketplace (post jobs / offer skills)
 - Availability-based discovery
 - Trust badges (Verified ID, Insured)
-- Reliability scoring
-- Real-time messaging
-- Secure payments via Stripe with Escrow
+- Real-time messaging (Socket.IO)
+- ID Verification system with admin review
 - UK-focused (£ currency, postcodes)
 
 ## What's Been Implemented
 
 ### Pages Built
-1. ✅ Landing Page - Hero, dual CTAs, categories, available helpers, how it works
+1. ✅ Landing Page - Hero, dual CTAs, categories, featured helpers, how it works
 2. ✅ Browse Helpers - Filters, list/map view toggle, helper cards with badges
 3. ✅ Helper Profile - About, services, reviews tabs, booking calendar, Report User
 4. ✅ Post a Job - 4-step form (details, location, budget, review)
 5. ✅ Become a Helper - 5-step onboarding
 6. ✅ Login/Signup - JWT + Google OAuth
-7. ✅ Messages - Real-time chat with Socket.IO (fully wired)
-8. ✅ Checkout - Stripe payment integration with escrow
+7. ✅ Messages - Real-time chat with Socket.IO (fully wired, Vinted-style)
+8. ✅ Booking Request - Request booking without payment, message exchange
 9. ✅ Trust & Safety - Information page
-10. ✅ Dashboard - User/helper profile management with Leave Review for completed bookings
-11. ✅ Admin Dashboard - Payment management (escrow release/refund)
+10. ✅ Dashboard - User/helper profile management, booking management
+11. ✅ Admin Dashboard - Verification management, reports management
+12. ✅ Verify Identity - 3-step ID verification flow for helpers
+13. ✅ Legal Pages - Terms, Privacy, Cookies
 
 ### Backend APIs
 - /api/auth/* (register, login, session, me, logout)
-- /api/helpers/* (CRUD, search, filters)
+- /api/helpers/* (CRUD, search, filters, featured)
 - /api/jobs/* (CRUD)
-- /api/bookings/* (CRUD)
-- /api/messages/* (conversations, real-time)
+- /api/bookings/* (CRUD, helper bookings, status update)
+- /api/messages/* (conversations, real-time via Socket.IO)
 - /api/reviews/* (CRUD, create review, get helper reviews)
 - /api/reports/* (Report user functionality)
-- /api/payments/* (Stripe checkout, status)
-- /api/admin/payments/* (Admin: list, release, refund transactions)
+- /api/verification/* (submit, status)
+- /api/admin/verifications/* (list, detail, approve/reject)
 - /api/admin/reports (Admin: view all user reports)
-- /api/helper/earnings (Helper earnings summary)
+- /api/notifications/* (list, read, read-all)
 - /api/categories
 
-### Payment Escrow System (March 2026)
-- ✅ Checkout creates payment transaction record
-- ✅ Funds held in platform account after Stripe payment
-- ✅ Admin dashboard at /admin/dashboard
-- ✅ Admin can view all transactions with filters (held/released/refunded)
-- ✅ Admin can release payment to helper
-- ✅ Admin can refund payment to customer
-- ✅ Backend admin role validation (403 for non-admin)
-- ✅ Helper earnings tracking
+### ID Verification System (March 2026 - COMPLETED & TESTED)
+- ✅ Helper submits ID (passport/driving license/national ID) + selfie at /verify-identity
+- ✅ 3-step wizard: Select ID type → Upload ID front/back → Upload selfie
+- ✅ Base64 images stored in MongoDB verifications collection
+- ✅ Admin reviews at /admin/dashboard → Verifications tab
+- ✅ Admin can approve (sets is_verified=true) or reject with reason
+- ✅ User gets notification upon verification decision
+- ✅ Full end-to-end testing completed (16/16 backend tests passed)
 
-### New Features (March 2026)
-- ✅ **Real-time Chat**: Socket.IO wired to frontend with room-based messaging
-- ✅ **Review System**: Star ratings + comments, auto-updates helper rating average
-- ✅ **Report User**: 7 report reasons (inappropriate, fraud, harassment, fake profile, no show, poor service, other)
-- ✅ **Map View Toggle**: MapLibre map with helper location markers showing prices
-- ✅ **Email Notifications** (MOCKED): Booking requests, confirmations, payment released - ready for Resend API
-- ✅ **Push Notifications**: In-app notification bell with dropdown, unread count badge
-- ✅ **Featured Helpers**: Top-rated helpers section on homepage with gold star badges
-- ✅ **Seasonal Pricing**: "In demand this month" section showing high-demand services with % indicators
-- ✅ **Direct Payment Model**: Removed payment processing - users arrange payments directly (cash/bank transfer) like Vinted
-- ✅ **Helper Booking Management**: Helpers can accept/decline/complete bookings from Dashboard
+### Real-time Chat System (Vinted-style - ALREADY IMPLEMENTED)
+- ✅ Socket.IO server setup with room-based messaging
+- ✅ Frontend MessagesPage with real-time updates
+- ✅ Conversation creation from helper profile (Request Quote)
+- ✅ Message to helper option in booking flow
+- ✅ Users can discuss payment details directly
 
 ### Features
 - ✅ Responsive design (mobile-first)
 - ✅ MapLibre map integration with List/Map view toggle
 - ✅ WebSocket real-time chat (fully functional)
-- ✅ Stripe payment flow with escrow
 - ✅ Sample data seeding
 - ✅ Trust badges (Verified ID, Insured)
-- ✅ Reliability scoring
 - ✅ Category-based filtering
 - ✅ Report User dialog with 7 reasons
 - ✅ Review/Rating system for completed bookings
+- ✅ Featured helpers on homepage
+- ✅ Seasonal pricing indicators
+- ✅ In-app notifications
+
+## Database Collections
+- users: email, name, role, is_helper, verification_status, is_verified
+- helper_profiles: bio, categories, hourly_rate, availability, badges
+- jobs: title, description, category, postcode, budget
+- bookings: customer_id, helper_id, status, preferred_payment
+- verifications: user_id, id_type, id_front, id_back, selfie, status, rejection_reason
+- messages: conversation_id, sender_id, content
+- conversations: participants, booking_id
+- reviews: booking_id, helper_id, rating, comment
+- reports: reporter_id, reported_user_id, reason, details, status
+- notifications: user_id, type, title, message, read
 
 ## Prioritized Backlog
 
-### P0 (Critical for MVP)
-- All core features implemented ✅
-- Payment escrow system ✅
-- Real-time chat ✅
-- Review/rating system ✅
-- Report User functionality ✅
-- Map view toggle ✅
-- Email notifications ✅ (MOCKED - ready for Resend API key)
-- Push notifications ✅
-- Featured helpers ✅
-- Seasonal pricing ✅
+### P0 (Critical for MVP) - COMPLETED
+- ✅ Core marketplace features
+- ✅ Real-time chat (Socket.IO)
+- ✅ ID Verification system with admin review
+- ✅ Review/rating system
+- ✅ Report User functionality
+- ✅ Direct payment model (Vinted-style)
 
 ### P1 (High Priority)
-- Enable real email sending (add Resend API key)
-- Helper verification document upload flow
+- Enable real email sending (add Resend API key - currently MOCKED)
+- Display verification badge prominently on helper profiles
 - Booking calendar sync
 
 ### P2 (Medium Priority)
+- Implement "Reliability Score" based on completed jobs
 - Advanced availability calendar management
 - Customer booking history
 - Helper analytics dashboard
 
 ### P3 (Low Priority/Future)
 - Mobile app (React Native)
-- Helper analytics dashboard
 - Referral program
 - Multi-language support
-
-## Database Collections
-- users: email, name, role, is_helper
-- helper_profiles: bio, categories, hourly_rate, availability, badges
-- jobs: title, description, category, postcode, budget
-- bookings: customer_id, helper_id, status, payment_status
-- payment_transactions: booking_id, amount, platform_fee, helper_amount, payment_status, payout_status
-- payouts: transaction_id, helper_id, amount, status
-- messages: conversation_id, sender_id, content
-- reviews: booking_id, helper_id, rating, comment
-- reports: reporter_id, reported_user_id, reason, details, status
 
 ## Test Credentials
 - Customer: testcustomer@test.com / Test123!
 - Admin: admin@anywork.co.uk / Admin123!
+
+## Notes
+- Email service is MOCKED - logs to console with `[EMAIL MOCKED]` prefix
+- Payment processing removed - direct payment model like Vinted
+- Socket.IO path: /api/socket.io
