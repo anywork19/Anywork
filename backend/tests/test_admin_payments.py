@@ -7,7 +7,7 @@ import requests
 import os
 from datetime import datetime
 
-BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://anywork-escrow.preview.emergentagent.com').rstrip('/')
+BASE_URL = os.environ.get('REACT_APP_BACKEND_URL', 'https://verification-flow-5.preview.emergentagent.com').rstrip('/')
 
 # Test credentials
 ADMIN_EMAIL = "admin@anywork.co.uk"
@@ -241,7 +241,7 @@ class TestCheckoutFlow:
         # Create checkout session
         checkout_data = {
             "booking_id": booking_id,
-            "origin_url": "https://anywork-escrow.preview.emergentagent.com"
+            "origin_url": "https://verification-flow-5.preview.emergentagent.com"
         }
         
         checkout_response = customer_client.post(f"{BASE_URL}/api/payments/checkout", json=checkout_data)
@@ -287,7 +287,7 @@ class TestTransactionAmounts:
         # Create checkout to generate transaction
         checkout_data = {
             "booking_id": booking_id,
-            "origin_url": "https://anywork-escrow.preview.emergentagent.com"
+            "origin_url": "https://verification-flow-5.preview.emergentagent.com"
         }
         
         checkout_response = customer_client.post(f"{BASE_URL}/api/payments/checkout", json=checkout_data)

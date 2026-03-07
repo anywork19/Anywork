@@ -7,7 +7,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 
 class AnyWorkAPITester:
-    def __init__(self, base_url: str = "https://anywork-escrow.preview.emergentagent.com"):
+    def __init__(self, base_url: str = "https://verification-flow-5.preview.emergentagent.com"):
         self.base_url = base_url
         self.token = None
         self.user_id = None

@@ -94,6 +94,13 @@ export const api = {
   // Admin Reports
   getAdminReports: () => apiClient.get('/admin/reports'),
   getAdminBookings: () => apiClient.get('/admin/bookings'),
+  getAdminVerifications: () => apiClient.get('/admin/verifications'),
+  getVerificationDetail: (verificationId) => apiClient.get(`/admin/verifications/${verificationId}`),
+  updateVerificationStatus: (verificationId, data) => apiClient.put(`/admin/verifications/${verificationId}`, data),
+
+  // Verification
+  submitVerification: (data) => apiClient.post('/verification/submit', data),
+  getVerificationStatus: () => apiClient.get('/verification/status'),
 
   // Seed data
   seedData: () => apiClient.post('/seed-data')

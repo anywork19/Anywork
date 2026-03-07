@@ -208,6 +208,8 @@ class User(BaseModel):
     picture: Optional[str] = None
     created_at: datetime
     is_helper: bool = False
+    verification_status: Optional[str] = None  # unverified, pending, verified, rejected
+    is_verified: bool = False
 
 class HelperProfileCreate(BaseModel):
     bio: str
@@ -1589,6 +1591,213 @@ async def get_admin_bookings(
     bookings = await db.bookings.find({}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
     total = await db.bookings.count_documents({})
     return {"bookings": bookings, "total": total}
+
+# ==================== ID VERIFICATION ====================
+
+class VerificationSubmit(BaseModel):
+    id_type: str  # passport, driving_license, national_id
+    id_front: str  # base64 encoded image
+    id_back: Optional[str] = None  # base64 encoded image
+    selfie: str  # base64 encoded image
+
+@api_router.post("/verification/submit")
+async def submit_verification(data: VerificationSubmit, user: User = Depends(get_current_user)):
+    """Submit ID verification documents"""
+    # Check if already verified or pending
+    existing = await db.verifications.find_one({"user_id": user.user_id, "status": {"$in": ["pending", "verified"]}})
+    if existing:
+        if existing["status"] == "verified":
+            raise HTTPException(status_code=400, detail="Already verified")
+        if existing["status"] == "pending":
+            raise HTTPException(status_code=400, detail="Verification already in progress")
+    
+    verification_id = f"verify_{uuid.uuid4().hex[:12]}"
+    verification_doc = {
+        "verification_id": verification_id,
+        "user_id": user.user_id,
+        "user_name": user.name,
+        "user_email": user.email,
+        "id_type": data.id_type,
+        "id_front": data.id_front,
+        "id_back": data.id_back,
+        "selfie": data.selfie,
+        "status": "pending",  # pending, verified, rejected
+        "submitted_at": datetime.now(timezone.utc).isoformat(),
+        "reviewed_at": None,
+        "reviewed_by": None,
+        "rejection_reason": None
+    }
+    
+    await db.verifications.insert_one(verification_doc)
+    
+    # Update user's verification status
+    await db.users.update_one(
+        {"user_id": user.user_id},
+        {"$set": {"verification_status": "pending"}}
+    )
+    
+    # Create notification
+    await db.notifications.insert_one({
+        "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+        "user_id": user.user_id,
+        "type": "verification_submitted",
+        "title": "Verification Submitted",
+        "message": "Your ID verification is being reviewed. This usually takes 24-48 hours.",
+        "data": {"verification_id": verification_id},
+        "read": False,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    
+    # Log email (mocked)
+    email_html = f"""
+    <!DOCTYPE html>
+    <html>
+    <body style="font-family: Arial, sans-serif;">
+        <h2>New Verification Request</h2>
+        <p>User: {user.name} ({user.email})</p>
+        <p>ID Type: {data.id_type}</p>
+        <p>Submitted: {datetime.now(timezone.utc).isoformat()}</p>
+        <p><a href="https://anywork.co.uk/admin/dashboard">Review in Admin Dashboard</a></p>
+    </body>
+    </html>
+    """
+    await send_email("admin@anywork.co.uk", f"New ID Verification - {user.name}", email_html)
+    
+    return {"message": "Verification submitted successfully", "verification_id": verification_id}
+
+@api_router.get("/verification/status")
+async def get_verification_status(user: User = Depends(get_current_user)):
+    """Get current user's verification status"""
+    verification = await db.verifications.find_one(
+        {"user_id": user.user_id},
+        {"_id": 0, "id_front": 0, "id_back": 0, "selfie": 0}  # Don't return images
+    )
+    
+    return {
+        "status": user.verification_status or "unverified",
+        "verification": verification
+    }
+
+@api_router.get("/admin/verifications")
+async def get_admin_verifications(
+    status: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 50,
+    user: User = Depends(require_admin)
+):
+    """Get all verification requests (admin only)"""
+    query = {}
+    if status:
+        query["status"] = status
+    
+    # Don't return full base64 images in list view
+    verifications = await db.verifications.find(query, {"_id": 0}).sort("submitted_at", -1).skip(skip).limit(limit).to_list(limit)
+    total = await db.verifications.count_documents(query)
+    
+    # Strip large image data for list view (keep small preview indicator)
+    for v in verifications:
+        v["has_id_front"] = bool(v.get("id_front"))
+        v["has_id_back"] = bool(v.get("id_back"))
+        v["has_selfie"] = bool(v.get("selfie"))
+        v.pop("id_front", None)
+        v.pop("id_back", None)
+        v.pop("selfie", None)
+    
+    pending_count = await db.verifications.count_documents({"status": "pending"})
+    
+    return {"verifications": verifications, "total": total, "pending_count": pending_count}
+
+@api_router.get("/admin/verifications/{verification_id}")
+async def get_verification_detail(verification_id: str, user: User = Depends(require_admin)):
+    """Get verification details including images (admin only)"""
+    verification = await db.verifications.find_one({"verification_id": verification_id}, {"_id": 0})
+    if not verification:
+        raise HTTPException(status_code=404, detail="Verification not found")
+    return verification
+
+class VerificationReview(BaseModel):
+    status: str  # verified or rejected
+    rejection_reason: Optional[str] = None
+
+@api_router.put("/admin/verifications/{verification_id}")
+async def review_verification(verification_id: str, data: VerificationReview, user: User = Depends(require_admin)):
+    """Approve or reject a verification (admin only)"""
+    if data.status not in ["verified", "rejected"]:
+        raise HTTPException(status_code=400, detail="Status must be 'verified' or 'rejected'")
+    
+    verification = await db.verifications.find_one({"verification_id": verification_id}, {"_id": 0})
+    if not verification:
+        raise HTTPException(status_code=404, detail="Verification not found")
+    
+    # Update verification
+    await db.verifications.update_one(
+        {"verification_id": verification_id},
+        {"$set": {
+            "status": data.status,
+            "reviewed_at": datetime.now(timezone.utc).isoformat(),
+            "reviewed_by": user.user_id,
+            "rejection_reason": data.rejection_reason if data.status == "rejected" else None
+        }}
+    )
+    
+    # Update user's verification status
+    await db.users.update_one(
+        {"user_id": verification["user_id"]},
+        {"$set": {"verification_status": data.status, "is_verified": data.status == "verified"}}
+    )
+    
+    # Also update helper profile if user is a helper
+    await db.helper_profiles.update_one(
+        {"user_id": verification["user_id"]},
+        {"$set": {"is_verified": data.status == "verified"}}
+    )
+    
+    # Send notification to user
+    if data.status == "verified":
+        await db.notifications.insert_one({
+            "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+            "user_id": verification["user_id"],
+            "type": "verification_approved",
+            "title": "Verification Approved! ✅",
+            "message": "Your identity has been verified. You now have a verified badge on your profile.",
+            "data": {"verification_id": verification_id},
+            "read": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+        
+        # Send email
+        verified_user = await db.users.find_one({"user_id": verification["user_id"]}, {"_id": 0})
+        if verified_user:
+            email_html = f"""
+            <!DOCTYPE html>
+            <html>
+            <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="background: #10B981; padding: 20px; text-align: center;">
+                    <h1 style="color: white; margin: 0;">AnyWork</h1>
+                </div>
+                <div style="padding: 30px; background: #f8f9fa;">
+                    <h2 style="color: #0F172A;">You're Verified! ✅</h2>
+                    <p style="color: #64748B;">Hi {verified_user.get('name', 'User')},</p>
+                    <p style="color: #64748B;">Great news! Your identity has been verified. You now have a "Verified" badge on your profile, which helps build trust with other users.</p>
+                    <a href="https://anywork.co.uk/dashboard" style="display: inline-block; background: #0052CC; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 20px;">View Your Profile</a>
+                </div>
+            </body>
+            </html>
+            """
+            await send_email(verified_user.get("email"), "You're Verified - AnyWork ✅", email_html)
+    else:
+        await db.notifications.insert_one({
+            "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+            "user_id": verification["user_id"],
+            "type": "verification_rejected",
+            "title": "Verification Not Approved",
+            "message": data.rejection_reason or "Your verification was not approved. Please try again with clearer documents.",
+            "data": {"verification_id": verification_id},
+            "read": False,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        })
+    
+    return {"message": f"Verification {data.status}", "verification_id": verification_id}
 
 # ==================== HELPER EARNINGS ====================
 
