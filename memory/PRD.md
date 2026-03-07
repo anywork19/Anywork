@@ -21,7 +21,7 @@ Create a premium, modern UK-focused marketplace website called "AnyWork" that co
 - Availability-based discovery
 - Trust badges (Verified ID, Insured)
 - Real-time messaging (Socket.IO)
-- AI-powered ID Verification with auto face matching
+- AI-powered ID Verification integrated into signup
 - UK-focused (£ currency, postcodes)
 
 ## What's Been Implemented
@@ -32,13 +32,13 @@ Create a premium, modern UK-focused marketplace website called "AnyWork" that co
 3. ✅ Helper Profile - About, services, reviews tabs, booking calendar, Report User
 4. ✅ Post a Job - 4-step form (details, location, budget, review)
 5. ✅ Become a Helper - 5-step onboarding
-6. ✅ Login/Signup - JWT + Google OAuth
+6. ✅ Login/Signup - Integrated signup with ID verification flow
 7. ✅ Messages - Real-time chat with Socket.IO (fully wired, Vinted-style)
 8. ✅ Booking Request - Request booking without payment, message exchange
 9. ✅ Trust & Safety - Information page
 10. ✅ Dashboard - User/helper profile management, booking management
 11. ✅ Admin Dashboard - Verification management, reports management
-12. ✅ Verify Identity - 3-step ID verification with AI face comparison
+12. ✅ Verify Identity - Standalone page for existing users
 13. ✅ Legal Pages - Terms, Privacy, Cookies
 
 ### Backend APIs
@@ -55,15 +55,20 @@ Create a premium, modern UK-focused marketplace website called "AnyWork" that co
 - /api/notifications/* (list, read, read-all)
 - /api/categories
 
-### AI-Powered ID Verification System (March 2026 - COMPLETED & TESTED)
-- ✅ Helper submits ID (passport/driving license/national ID) + selfie at /verify-identity
-- ✅ **AI Face Comparison**: GPT-5.2 vision compares ID photo with selfie
-- ✅ **Auto-Approve**: If AI confidence ≥80% match → instant verification
-- ✅ **Auto-Reject**: If AI confidence ≥70% NO match → instant rejection with tips
-- ✅ **Manual Review**: Uncertain cases flagged for admin review
-- ✅ ai_verification field stores AI decision details (match, confidence, reason)
-- ✅ Frontend shows appropriate result UI (verified/rejected/pending)
-- ✅ Full end-to-end testing completed (10/10 backend tests passed)
+### Integrated Signup + ID Verification Flow (March 2026 - COMPLETED & TESTED)
+**User requested: "During signup, user is immediately asked to verify their ID"**
+
+Flow implemented:
+1. **Step 1 (Form)**: User enters name, email, phone, password → clicks "Continue"
+2. **Step 2 (ID Type)**: Select passport, driving license, or national ID → "Skip for now" option available
+3. **Step 3 (ID Upload)**: Upload front of ID (required), back optional for driving license/national ID
+4. **Step 4 (Selfie)**: Take/upload selfie for face comparison
+5. **Step 5 (Result)**: AI verifies and shows result:
+   - ✅ **Verified** (green): AI confidence ≥80% match → instant verification
+   - ❌ **Rejected** (red): AI confidence ≥70% NO match → Try Again button
+   - ⏳ **Pending** (amber): Uncertain → flagged for admin review
+
+**Testing Results:** 100% pass rate (13/13 backend, all frontend steps working)
 
 ### Real-time Chat System (Vinted-style - ALREADY IMPLEMENTED)
 - ✅ Socket.IO server setup with room-based messaging
@@ -90,7 +95,7 @@ Create a premium, modern UK-focused marketplace website called "AnyWork" that co
 - helper_profiles: bio, categories, hourly_rate, availability, badges
 - jobs: title, description, category, postcode, budget
 - bookings: customer_id, helper_id, status, preferred_payment
-- verifications: user_id, id_type, id_front, id_back, selfie, status, ai_verification, rejection_reason
+- verifications: user_id, id_type, id_front, id_back, selfie, status, ai_verification
 - messages: conversation_id, sender_id, content
 - conversations: participants, booking_id
 - reviews: booking_id, helper_id, rating, comment
@@ -102,7 +107,7 @@ Create a premium, modern UK-focused marketplace website called "AnyWork" that co
 ### P0 (Critical for MVP) - COMPLETED
 - ✅ Core marketplace features
 - ✅ Real-time chat (Socket.IO)
-- ✅ ID Verification system with AI face comparison
+- ✅ Integrated signup + ID verification with AI face comparison
 - ✅ Review/rating system
 - ✅ Report User functionality
 - ✅ Direct payment model (Vinted-style)
