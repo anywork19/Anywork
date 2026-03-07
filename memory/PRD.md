@@ -9,6 +9,7 @@ Create a premium, modern UK-focused marketplace website called "AnyWork" that co
 - **Database**: MongoDB
 - **Authentication**: JWT + Emergent Google OAuth
 - **Payments**: Direct payment model (no payment processing - like Vinted)
+- **AI Integration**: GPT-5.2 vision via emergentintegrations (face verification)
 
 ## User Personas
 1. **Customers**: UK residents needing local help (cleaning, tutoring, handyman, etc.)
@@ -20,7 +21,7 @@ Create a premium, modern UK-focused marketplace website called "AnyWork" that co
 - Availability-based discovery
 - Trust badges (Verified ID, Insured)
 - Real-time messaging (Socket.IO)
-- ID Verification system with admin review
+- AI-powered ID Verification with auto face matching
 - UK-focused (£ currency, postcodes)
 
 ## What's Been Implemented
@@ -37,7 +38,7 @@ Create a premium, modern UK-focused marketplace website called "AnyWork" that co
 9. ✅ Trust & Safety - Information page
 10. ✅ Dashboard - User/helper profile management, booking management
 11. ✅ Admin Dashboard - Verification management, reports management
-12. ✅ Verify Identity - 3-step ID verification flow for helpers
+12. ✅ Verify Identity - 3-step ID verification with AI face comparison
 13. ✅ Legal Pages - Terms, Privacy, Cookies
 
 ### Backend APIs
@@ -48,20 +49,21 @@ Create a premium, modern UK-focused marketplace website called "AnyWork" that co
 - /api/messages/* (conversations, real-time via Socket.IO)
 - /api/reviews/* (CRUD, create review, get helper reviews)
 - /api/reports/* (Report user functionality)
-- /api/verification/* (submit, status)
+- /api/verification/* (submit with AI face comparison, status)
 - /api/admin/verifications/* (list, detail, approve/reject)
 - /api/admin/reports (Admin: view all user reports)
 - /api/notifications/* (list, read, read-all)
 - /api/categories
 
-### ID Verification System (March 2026 - COMPLETED & TESTED)
+### AI-Powered ID Verification System (March 2026 - COMPLETED & TESTED)
 - ✅ Helper submits ID (passport/driving license/national ID) + selfie at /verify-identity
-- ✅ 3-step wizard: Select ID type → Upload ID front/back → Upload selfie
-- ✅ Base64 images stored in MongoDB verifications collection
-- ✅ Admin reviews at /admin/dashboard → Verifications tab
-- ✅ Admin can approve (sets is_verified=true) or reject with reason
-- ✅ User gets notification upon verification decision
-- ✅ Full end-to-end testing completed (16/16 backend tests passed)
+- ✅ **AI Face Comparison**: GPT-5.2 vision compares ID photo with selfie
+- ✅ **Auto-Approve**: If AI confidence ≥80% match → instant verification
+- ✅ **Auto-Reject**: If AI confidence ≥70% NO match → instant rejection with tips
+- ✅ **Manual Review**: Uncertain cases flagged for admin review
+- ✅ ai_verification field stores AI decision details (match, confidence, reason)
+- ✅ Frontend shows appropriate result UI (verified/rejected/pending)
+- ✅ Full end-to-end testing completed (10/10 backend tests passed)
 
 ### Real-time Chat System (Vinted-style - ALREADY IMPLEMENTED)
 - ✅ Socket.IO server setup with room-based messaging
@@ -88,7 +90,7 @@ Create a premium, modern UK-focused marketplace website called "AnyWork" that co
 - helper_profiles: bio, categories, hourly_rate, availability, badges
 - jobs: title, description, category, postcode, budget
 - bookings: customer_id, helper_id, status, preferred_payment
-- verifications: user_id, id_type, id_front, id_back, selfie, status, rejection_reason
+- verifications: user_id, id_type, id_front, id_back, selfie, status, ai_verification, rejection_reason
 - messages: conversation_id, sender_id, content
 - conversations: participants, booking_id
 - reviews: booking_id, helper_id, rating, comment
@@ -100,7 +102,7 @@ Create a premium, modern UK-focused marketplace website called "AnyWork" that co
 ### P0 (Critical for MVP) - COMPLETED
 - ✅ Core marketplace features
 - ✅ Real-time chat (Socket.IO)
-- ✅ ID Verification system with admin review
+- ✅ ID Verification system with AI face comparison
 - ✅ Review/rating system
 - ✅ Report User functionality
 - ✅ Direct payment model (Vinted-style)
@@ -125,7 +127,10 @@ Create a premium, modern UK-focused marketplace website called "AnyWork" that co
 - Customer: testcustomer@test.com / Test123!
 - Admin: admin@anywork.co.uk / Admin123!
 
-## Notes
+## Technical Notes
 - Email service is MOCKED - logs to console with `[EMAIL MOCKED]` prefix
 - Payment processing removed - direct payment model like Vinted
 - Socket.IO path: /api/socket.io
+- AI Face Verification: Uses EMERGENT_LLM_KEY with GPT-5.2 vision
+- Auto-approve threshold: 80% confidence match
+- Auto-reject threshold: 70% confidence NO match
