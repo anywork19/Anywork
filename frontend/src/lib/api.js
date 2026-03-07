@@ -44,7 +44,8 @@ export const api = {
   getBookings: () => apiClient.get('/bookings'),
   getBooking: (bookingId) => apiClient.get(`/bookings/${bookingId}`),
   createBooking: (data) => apiClient.post('/bookings', data),
-  updateBookingStatus: (bookingId, status) => apiClient.put(`/bookings/${bookingId}/status`, null, { params: { status } }),
+  getHelperBookings: () => apiClient.get('/bookings/helper'),
+  updateBookingStatus: (bookingId, data) => apiClient.put(`/bookings/${bookingId}/status`, data),
 
   // Reviews
   getHelperReviews: (helperId, params) => apiClient.get(`/reviews/helper/${helperId}`, { params }),

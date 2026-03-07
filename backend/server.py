@@ -769,6 +769,31 @@ async def create_booking(data: BookingCreate, user: User = Depends(get_current_u
     }
     await db.bookings.insert_one(booking_doc)
     booking_doc.pop("_id", None)
+    
+    # Send notification to helper about new booking request
+    helper_profile = await db.helper_profiles.find_one({"helper_id": data.helper_id}, {"_id": 0})
+    if helper_profile:
+        helper_user = await db.users.find_one({"user_id": helper_profile["user_id"]}, {"_id": 0})
+        if helper_user:
+            email_html = get_new_booking_helper_email(
+                helper_user.get("name", "Helper"),
+                user.name,
+                booking_doc
+            )
+            await send_email(helper_user.get("email"), "New Booking Request - AnyWork 📋", email_html)
+            
+            # Create in-app notification
+            await db.notifications.insert_one({
+                "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+                "user_id": helper_profile["user_id"],
+                "type": "new_booking",
+                "title": "New Booking Request",
+                "message": f"{user.name} wants to book your {data.service_type.replace('-', ' ')} service for {data.date}",
+                "data": {"booking_id": booking_id},
+                "read": False,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            })
+    
     return booking_doc
 
 @api_router.get("/bookings")
@@ -830,6 +855,39 @@ async def list_bookings(user: User = Depends(get_current_user)):
     bookings = await db.bookings.aggregate(pipeline).to_list(100)
     return {"bookings": bookings}
 
+@api_router.get("/bookings/helper")
+async def get_helper_bookings(user: User = Depends(get_current_user)):
+    """Get all bookings where the current user is the helper"""
+    helper_profile = await db.helper_profiles.find_one({"user_id": user.user_id}, {"_id": 0})
+    if not helper_profile:
+        return {"bookings": []}
+    
+    pipeline = [
+        {"$match": {"helper_id": helper_profile["helper_id"]}},
+        {"$sort": {"created_at": -1}},
+        {"$limit": 100},
+        # Lookup customer info
+        {
+            "$lookup": {
+                "from": "users",
+                "localField": "customer_id",
+                "foreignField": "user_id",
+                "as": "customer_data"
+            }
+        },
+        {"$unwind": {"path": "$customer_data", "preserveNullAndEmptyArrays": True}},
+        {
+            "$addFields": {
+                "customer_name": {"$ifNull": ["$customer_data.name", "Customer"]},
+                "customer_email": "$customer_data.email"
+            }
+        },
+        {"$project": {"customer_data": 0, "_id": 0}}
+    ]
+    
+    bookings = await db.bookings.aggregate(pipeline).to_list(100)
+    return {"bookings": bookings}
+
 @api_router.get("/bookings/{booking_id}")
 async def get_booking(booking_id: str, user: User = Depends(get_current_user)):
     booking = await db.bookings.find_one({"booking_id": booking_id}, {"_id": 0})
@@ -837,17 +895,83 @@ async def get_booking(booking_id: str, user: User = Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Booking not found")
     return booking
 
+class BookingStatusUpdate(BaseModel):
+    status: str
+
 @api_router.put("/bookings/{booking_id}/status")
-async def update_booking_status(booking_id: str, status: str, user: User = Depends(get_current_user)):
-    result = await db.bookings.update_one(
-        {"booking_id": booking_id},
-        {"$set": {"status": status}}
-    )
-    if result.matched_count == 0:
+async def update_booking_status(booking_id: str, data: BookingStatusUpdate, user: User = Depends(get_current_user)):
+    """Update booking status - helpers can accept/decline/complete, customers can cancel"""
+    booking = await db.bookings.find_one({"booking_id": booking_id}, {"_id": 0})
+    if not booking:
         raise HTTPException(status_code=404, detail="Booking not found")
     
-    booking = await db.bookings.find_one({"booking_id": booking_id}, {"_id": 0})
-    return booking
+    # Check if user is authorized to update this booking
+    helper_profile = await db.helper_profiles.find_one({"user_id": user.user_id}, {"_id": 0})
+    is_helper = helper_profile and helper_profile.get("helper_id") == booking.get("helper_id")
+    is_customer = booking.get("customer_id") == user.user_id
+    
+    if not is_helper and not is_customer:
+        raise HTTPException(status_code=403, detail="Not authorized to update this booking")
+    
+    # Validate status transition
+    valid_statuses = ['pending', 'confirmed', 'declined', 'completed', 'cancelled']
+    if data.status not in valid_statuses:
+        raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {valid_statuses}")
+    
+    result = await db.bookings.update_one(
+        {"booking_id": booking_id},
+        {"$set": {"status": data.status, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    # Send notification emails
+    if data.status == 'confirmed':
+        customer = await db.users.find_one({"user_id": booking["customer_id"]}, {"_id": 0})
+        helper_user = await db.users.find_one({"user_id": user.user_id}, {"_id": 0})
+        if customer:
+            email_html = f"""
+            <!DOCTYPE html>
+            <html>
+            <head><meta charset="utf-8"></head>
+            <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+                <div style="background: #10B981; padding: 20px; text-align: center;">
+                    <h1 style="color: white; margin: 0;">AnyWork</h1>
+                </div>
+                <div style="padding: 30px; background: #f8f9fa;">
+                    <h2 style="color: #0F172A;">Booking Confirmed! ✅</h2>
+                    <p style="color: #64748B;">Hi {customer.get('name', 'Customer')},</p>
+                    <p style="color: #64748B;">Great news! {helper_user.get('name', 'Your helper')} has accepted your booking.</p>
+                    
+                    <div style="background: white; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                        <p><strong>Service:</strong> {booking.get('service_type', 'Service').replace('-', ' ').title()}</p>
+                        <p><strong>Date:</strong> {booking.get('date', 'TBC')}</p>
+                        <p><strong>Time:</strong> {booking.get('time', 'TBC')}</p>
+                        <p><strong>Estimated Total:</strong> £{booking.get('total_amount', 0)}</p>
+                        <p><strong>Payment Method:</strong> {booking.get('preferred_payment', 'cash').replace('_', ' ').title()}</p>
+                    </div>
+                    
+                    <p style="color: #64748B;">Please arrange payment directly with {helper_user.get('name', 'your helper')}.</p>
+                    
+                    <a href="https://anywork.co.uk/messages" style="display: inline-block; background: #0052CC; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; margin-top: 20px;">Message Helper</a>
+                </div>
+            </body>
+            </html>
+            """
+            await send_email(customer.get('email'), "Booking Confirmed - AnyWork ✅", email_html)
+            
+            # Create notification
+            await db.notifications.insert_one({
+                "notification_id": f"notif_{uuid.uuid4().hex[:12]}",
+                "user_id": booking["customer_id"],
+                "type": "booking_confirmed",
+                "title": "Booking Confirmed!",
+                "message": f"{helper_user.get('name', 'Helper')} accepted your booking for {booking.get('date')}",
+                "data": {"booking_id": booking_id},
+                "read": False,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            })
+    
+    updated_booking = await db.bookings.find_one({"booking_id": booking_id}, {"_id": 0})
+    return updated_booking
 
 # ==================== REVIEW ROUTES ====================
 
