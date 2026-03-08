@@ -19,6 +19,7 @@ import JobPostedPage from './pages/JobPostedPage';
 import ProfileLivePage from './pages/ProfileLivePage';
 import DashboardPage from './pages/DashboardPage';
 import AdminDashboardPage from './pages/AdminDashboardPage';
+import AdminPanelPage from './pages/AdminPanelPage';
 import CookiePolicyPage from './pages/CookiePolicyPage';
 import TermsConditionsPage from './pages/TermsConditionsPage';
 import PrivacyPolicyPage from './pages/PrivacyPolicyPage';
@@ -58,6 +59,7 @@ function AppRouter() {
           <Route path="/bookings" element={<DashboardPage />} />
           <Route path="/settings" element={<DashboardPage />} />
           <Route path="/admin/dashboard" element={<AdminDashboardPage />} />
+          <Route path="/admin" element={<AdminPanelPage />} />
           <Route path="/cookie-policy" element={<CookiePolicyPage />} />
           <Route path="/terms" element={<TermsConditionsPage />} />
           <Route path="/privacy" element={<PrivacyPolicyPage />} />

@@ -1473,12 +1473,17 @@ async def stripe_webhook(request: Request):
 
 # Admin email for simple admin check
 ADMIN_EMAIL = "admin@anywork.co.uk"
+ADMIN_EMAILS = ["admin@anywork.co.uk", "nabeel.ucp@gmail.com"]
 
 async def require_admin(user: User = Depends(get_current_user)) -> User:
     """Dependency that requires the user to be an admin"""
-    if user.email != ADMIN_EMAIL:
-        raise HTTPException(status_code=403, detail="Admin access required")
-    return user
+    # Check by role first, then by email for backwards compatibility
+    user_doc = await db.users.find_one({"user_id": user.user_id})
+    if user_doc and user_doc.get("role") == "admin":
+        return user
+    if user.email in ADMIN_EMAILS:
+        return user
+    raise HTTPException(status_code=403, detail="Admin access required")
 
 @api_router.get("/admin/payments")
 async def get_all_payments(
@@ -1745,15 +1750,365 @@ async def get_reports(
     
     return {"reports": reports, "total": total}
 
+# ==================== ADMIN DASHBOARD STATS ====================
+
+@api_router.get("/admin/dashboard/stats")
+async def get_admin_dashboard_stats(user: User = Depends(require_admin)):
+    """Get dashboard statistics for admin panel"""
+    from datetime import timedelta
+    
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    week_ago = now - timedelta(days=7)
+    month_ago = now - timedelta(days=30)
+    
+    # Total counts
+    total_users = await db.users.count_documents({})
+    total_jobs = await db.jobs.count_documents({})
+    total_bookings = await db.bookings.count_documents({})
+    
+    # Job status counts
+    active_jobs = await db.jobs.count_documents({"status": {"$in": ["open", "active", None]}})
+    completed_jobs = await db.bookings.count_documents({"status": "completed"})
+    in_progress_jobs = await db.bookings.count_documents({"status": {"$in": ["confirmed", "in_progress"]}})
+    
+    # Today's stats
+    users_today = await db.users.count_documents({"created_at": {"$gte": today_start.isoformat()}})
+    jobs_today = await db.jobs.count_documents({"created_at": {"$gte": today_start.isoformat()}})
+    
+    # Weekly stats
+    users_this_week = await db.users.count_documents({"created_at": {"$gte": week_ago.isoformat()}})
+    jobs_this_week = await db.jobs.count_documents({"created_at": {"$gte": week_ago.isoformat()}})
+    
+    # Verification stats
+    pending_verifications = await db.verifications.count_documents({"status": "pending"})
+    verified_users = await db.users.count_documents({"is_verified": True})
+    
+    # Helper stats
+    total_helpers = await db.users.count_documents({"is_helper": True})
+    
+    # Reports stats
+    pending_reports = await db.reports.count_documents({"status": "pending"})
+    
+    return {
+        "total_users": total_users,
+        "total_jobs": total_jobs,
+        "total_bookings": total_bookings,
+        "active_jobs": active_jobs,
+        "completed_jobs": completed_jobs,
+        "in_progress_jobs": in_progress_jobs,
+        "users_today": users_today,
+        "jobs_today": jobs_today,
+        "users_this_week": users_this_week,
+        "jobs_this_week": jobs_this_week,
+        "pending_verifications": pending_verifications,
+        "verified_users": verified_users,
+        "total_helpers": total_helpers,
+        "pending_reports": pending_reports
+    }
+
+@api_router.get("/admin/dashboard/activity")
+async def get_admin_recent_activity(limit: int = 20, user: User = Depends(require_admin)):
+    """Get recent activity feed for admin dashboard"""
+    activities = []
+    
+    # Recent users
+    recent_users = await db.users.find({}, {"_id": 0, "password_hash": 0}).sort("created_at", -1).limit(5).to_list(5)
+    for u in recent_users:
+        activities.append({
+            "type": "user_registered",
+            "message": f"New user registered: {u.get('name', 'Unknown')}",
+            "user_id": u.get("user_id"),
+            "timestamp": u.get("created_at"),
+            "icon": "user"
+        })
+    
+    # Recent jobs
+    recent_jobs = await db.jobs.find({}, {"_id": 0}).sort("created_at", -1).limit(5).to_list(5)
+    for j in recent_jobs:
+        activities.append({
+            "type": "job_posted",
+            "message": f"New job posted: {j.get('title', 'Untitled')}",
+            "job_id": j.get("job_id"),
+            "timestamp": j.get("created_at"),
+            "icon": "briefcase"
+        })
+    
+    # Recent bookings
+    recent_bookings = await db.bookings.find({}, {"_id": 0}).sort("created_at", -1).limit(5).to_list(5)
+    for b in recent_bookings:
+        activities.append({
+            "type": "booking_created",
+            "message": f"Booking request created",
+            "booking_id": b.get("booking_id"),
+            "timestamp": b.get("created_at"),
+            "icon": "calendar"
+        })
+    
+    # Recent verifications
+    recent_verifications = await db.verifications.find({}, {"_id": 0}).sort("submitted_at", -1).limit(5).to_list(5)
+    for v in recent_verifications:
+        activities.append({
+            "type": "verification_submitted",
+            "message": f"ID verification submitted by {v.get('user_name', 'Unknown')}",
+            "verification_id": v.get("verification_id"),
+            "timestamp": v.get("submitted_at"),
+            "icon": "shield"
+        })
+    
+    # Sort all activities by timestamp
+    activities.sort(key=lambda x: x.get("timestamp", ""), reverse=True)
+    
+    return {"activities": activities[:limit]}
+
+@api_router.get("/admin/dashboard/charts")
+async def get_admin_chart_data(days: int = 7, user: User = Depends(require_admin)):
+    """Get chart data for admin dashboard"""
+    from datetime import timedelta
+    
+    now = datetime.now(timezone.utc)
+    chart_data = []
+    
+    for i in range(days - 1, -1, -1):
+        day_start = (now - timedelta(days=i)).replace(hour=0, minute=0, second=0, microsecond=0)
+        day_end = day_start + timedelta(days=1)
+        
+        users_count = await db.users.count_documents({
+            "created_at": {"$gte": day_start.isoformat(), "$lt": day_end.isoformat()}
+        })
+        
+        jobs_count = await db.jobs.count_documents({
+            "created_at": {"$gte": day_start.isoformat(), "$lt": day_end.isoformat()}
+        })
+        
+        bookings_count = await db.bookings.count_documents({
+            "created_at": {"$gte": day_start.isoformat(), "$lt": day_end.isoformat()}
+        })
+        
+        chart_data.append({
+            "date": day_start.strftime("%Y-%m-%d"),
+            "day": day_start.strftime("%a"),
+            "users": users_count,
+            "jobs": jobs_count,
+            "bookings": bookings_count
+        })
+    
+    return {"chart_data": chart_data}
+
+# ==================== ADMIN USER MANAGEMENT ====================
+
+@api_router.get("/admin/users")
+async def get_admin_users(
+    search: Optional[str] = None,
+    role: Optional[str] = None,
+    status: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 50,
+    user: User = Depends(require_admin)
+):
+    """Get all users for admin management"""
+    query = {}
+    
+    if search:
+        query["$or"] = [
+            {"name": {"$regex": search, "$options": "i"}},
+            {"email": {"$regex": search, "$options": "i"}}
+        ]
+    
+    if role == "helper":
+        query["is_helper"] = True
+    elif role == "customer":
+        query["is_helper"] = {"$ne": True}
+    
+    if status == "verified":
+        query["is_verified"] = True
+    elif status == "suspended":
+        query["is_suspended"] = True
+    elif status == "active":
+        query["is_suspended"] = {"$ne": True}
+    
+    users = await db.users.find(query, {"_id": 0, "password_hash": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    total = await db.users.count_documents(query)
+    
+    return {"users": users, "total": total}
+
+@api_router.get("/admin/users/{user_id}")
+async def get_admin_user_detail(user_id: str, user: User = Depends(require_admin)):
+    """Get detailed user info for admin"""
+    target_user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Get user's jobs
+    jobs = await db.jobs.find({"poster_id": user_id}, {"_id": 0}).sort("created_at", -1).limit(10).to_list(10)
+    
+    # Get user's bookings
+    bookings = await db.bookings.find(
+        {"$or": [{"customer_id": user_id}, {"helper_id": user_id}]},
+        {"_id": 0}
+    ).sort("created_at", -1).limit(10).to_list(10)
+    
+    # Get helper profile if helper
+    helper_profile = None
+    if target_user.get("is_helper"):
+        helper_profile = await db.helper_profiles.find_one({"user_id": user_id}, {"_id": 0})
+    
+    # Get verification status
+    verification = await db.verifications.find_one({"user_id": user_id}, {"_id": 0})
+    
+    return {
+        "user": target_user,
+        "jobs": jobs,
+        "bookings": bookings,
+        "helper_profile": helper_profile,
+        "verification": verification
+    }
+
+@api_router.put("/admin/users/{user_id}/status")
+async def update_user_status(user_id: str, action: str, reason: Optional[str] = None, user: User = Depends(require_admin)):
+    """Suspend, activate, or deactivate a user"""
+    target_user = await db.users.find_one({"user_id": user_id})
+    if not target_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    if action == "suspend":
+        await db.users.update_one(
+            {"user_id": user_id},
+            {"$set": {"is_suspended": True, "suspended_at": datetime.now(timezone.utc).isoformat(), "suspension_reason": reason}}
+        )
+        message = "User suspended"
+    elif action == "activate":
+        await db.users.update_one(
+            {"user_id": user_id},
+            {"$set": {"is_suspended": False}, "$unset": {"suspended_at": "", "suspension_reason": ""}}
+        )
+        message = "User activated"
+    elif action == "deactivate":
+        await db.users.update_one(
+            {"user_id": user_id},
+            {"$set": {"is_active": False, "deactivated_at": datetime.now(timezone.utc).isoformat()}}
+        )
+        message = "User deactivated"
+    else:
+        raise HTTPException(status_code=400, detail="Invalid action")
+    
+    # Return updated user
+    updated_user = await db.users.find_one({"user_id": user_id}, {"_id": 0, "password_hash": 0})
+    return updated_user
+
+# ==================== ADMIN JOB MANAGEMENT ====================
+
+@api_router.get("/admin/jobs")
+async def get_admin_jobs(
+    search: Optional[str] = None,
+    status: Optional[str] = None,
+    category: Optional[str] = None,
+    skip: int = 0,
+    limit: int = 50,
+    user: User = Depends(require_admin)
+):
+    """Get all jobs for admin management"""
+    query = {}
+    
+    if search:
+        query["$or"] = [
+            {"title": {"$regex": search, "$options": "i"}},
+            {"description": {"$regex": search, "$options": "i"}}
+        ]
+    
+    if status:
+        query["status"] = status
+    
+    if category:
+        query["category"] = category
+    
+    jobs = await db.jobs.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    total = await db.jobs.count_documents(query)
+    
+    # Enrich with poster info
+    for job in jobs:
+        poster = await db.users.find_one({"user_id": job.get("user_id")}, {"_id": 0, "name": 1, "email": 1, "picture": 1})
+        job["poster"] = poster
+    
+    return {"jobs": jobs, "total": total}
+
+@api_router.get("/admin/jobs/{job_id}")
+async def get_admin_job_detail(job_id: str, user: User = Depends(require_admin)):
+    """Get detailed job info for admin"""
+    job = await db.jobs.find_one({"job_id": job_id}, {"_id": 0})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    # Get poster info
+    poster = await db.users.find_one({"user_id": job.get("user_id")}, {"_id": 0, "name": 1, "email": 1, "picture": 1})
+    
+    # Get applications/bookings for this job
+    bookings = await db.bookings.find({"job_id": job_id}, {"_id": 0}).to_list(100)
+    
+    # Enrich bookings with helper info - need to get helper profile first to get user_id
+    for booking in bookings:
+        helper_profile = await db.helper_profiles.find_one({"helper_id": booking.get("helper_id")}, {"_id": 0, "user_id": 1})
+        if helper_profile:
+            helper = await db.users.find_one({"user_id": helper_profile.get("user_id")}, {"_id": 0, "name": 1, "email": 1, "picture": 1})
+            booking["helper"] = helper
+    
+    return {
+        "job": job,
+        "poster": poster,
+        "applications": bookings
+    }
+
+@api_router.put("/admin/jobs/{job_id}/status")
+async def update_job_status(job_id: str, status: str, reason: Optional[str] = None, user: User = Depends(require_admin)):
+    """Update job status (remove, close, etc.)"""
+    job = await db.jobs.find_one({"job_id": job_id})
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    update_data = {"status": status}
+    if status == "removed":
+        update_data["removed_at"] = datetime.now(timezone.utc).isoformat()
+        update_data["removal_reason"] = reason
+    
+    await db.jobs.update_one({"job_id": job_id}, {"$set": update_data})
+    
+    # Return updated job
+    updated_job = await db.jobs.find_one({"job_id": job_id}, {"_id": 0})
+    return updated_job
+
+@api_router.delete("/admin/jobs/{job_id}")
+async def delete_job(job_id: str, user: User = Depends(require_admin)):
+    """Delete a job permanently"""
+    result = await db.jobs.delete_one({"job_id": job_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Job not found")
+    
+    return {"message": "Job deleted", "job_id": job_id}
+
 @api_router.get("/admin/bookings")
 async def get_admin_bookings(
+    status: Optional[str] = None,
     skip: int = 0,
     limit: int = 50,
     user: User = Depends(require_admin)
 ):
     """Get all bookings (admin only)"""
-    bookings = await db.bookings.find({}, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
-    total = await db.bookings.count_documents({})
+    query = {}
+    if status:
+        query["status"] = status
+    
+    bookings = await db.bookings.find(query, {"_id": 0}).sort("created_at", -1).skip(skip).limit(limit).to_list(limit)
+    total = await db.bookings.count_documents(query)
+    
+    # Enrich with customer and helper info
+    for booking in bookings:
+        customer = await db.users.find_one({"user_id": booking.get("customer_id")}, {"_id": 0, "name": 1, "email": 1})
+        helper = await db.users.find_one({"user_id": booking.get("helper_id")}, {"_id": 0, "name": 1, "email": 1})
+        job = await db.jobs.find_one({"job_id": booking.get("job_id")}, {"_id": 0, "title": 1})
+        booking["customer"] = customer
+        booking["helper"] = helper
+        booking["job"] = job
+    
     return {"bookings": bookings, "total": total}
 
 # ==================== ID VERIFICATION ====================

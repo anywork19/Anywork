@@ -92,11 +92,27 @@ export const api = {
   reportUser: (data) => apiClient.post('/reports', data),
 
   // Admin Reports
-  getAdminReports: () => apiClient.get('/admin/reports'),
-  getAdminBookings: () => apiClient.get('/admin/bookings'),
+  getAdminReports: (params) => apiClient.get('/admin/reports', { params }),
+  getAdminBookings: (params) => apiClient.get('/admin/bookings', { params }),
   getAdminVerifications: () => apiClient.get('/admin/verifications'),
   getVerificationDetail: (verificationId) => apiClient.get(`/admin/verifications/${verificationId}`),
   updateVerificationStatus: (verificationId, data) => apiClient.put(`/admin/verifications/${verificationId}`, data),
+
+  // Admin Dashboard
+  getAdminDashboardStats: () => apiClient.get('/admin/dashboard/stats'),
+  getAdminActivity: (limit = 20) => apiClient.get('/admin/dashboard/activity', { params: { limit } }),
+  getAdminChartData: (days = 7) => apiClient.get('/admin/dashboard/charts', { params: { days } }),
+
+  // Admin User Management
+  getAdminUsers: (params) => apiClient.get('/admin/users', { params }),
+  getAdminUserDetail: (userId) => apiClient.get(`/admin/users/${userId}`),
+  updateUserStatus: (userId, action, reason) => apiClient.put(`/admin/users/${userId}/status`, null, { params: { action, reason } }),
+
+  // Admin Job Management
+  getAdminJobs: (params) => apiClient.get('/admin/jobs', { params }),
+  getAdminJobDetail: (jobId) => apiClient.get(`/admin/jobs/${jobId}`),
+  updateJobStatus: (jobId, status, reason) => apiClient.put(`/admin/jobs/${jobId}/status`, null, { params: { status, reason } }),
+  deleteJob: (jobId) => apiClient.delete(`/admin/jobs/${jobId}`),
 
   // Verification
   submitVerification: (data) => apiClient.post('/verification/submit', data),
