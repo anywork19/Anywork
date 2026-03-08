@@ -11,35 +11,79 @@ Create a premium, modern UK-focused marketplace website called "AnyWork" that co
 - **Payments**: Direct payment model (no payment processing - like Vinted)
 - **AI Integration**: GPT-5.2 vision via emergentintegrations (face verification)
 
+## Admin Panel (NEW)
+
+### Access
+- **URL**: `/admin`
+- **Credentials**: `nabeel.ucp@gmail.com` / `sana7860`
+- **Backup Admin**: `admin@anywork.co.uk` / `Admin123!`
+
+### Features
+1. **Dashboard**
+   - Total users, jobs, bookings stats
+   - Active & completed jobs
+   - Helpers count, verified users count
+   - Pending verifications & reports
+   - Last 7 days chart (users/jobs per day)
+   - Recent activity feed
+
+2. **User Management**
+   - View all registered users
+   - Search by name/email
+   - Filter: All / Helpers / Customers / Verified / Suspended
+   - View user details (jobs, bookings)
+   - Suspend/Activate users
+
+3. **Job Management**
+   - View all posted jobs
+   - Search by title/description
+   - Filter: All / Open / Active / Closed / Removed
+   - View job details with applications
+   - Remove inappropriate jobs
+
+4. **Bookings**
+   - View all bookings
+   - Filter by status: Pending / Confirmed / In Progress / Completed / Declined
+   - Track customer-helper connections
+
+5. **Verifications**
+   - Review ID verification requests
+   - View ID photo, selfie, AI result
+   - Approve or reject with reason
+
+6. **Reports**
+   - View user reports
+   - See reason, details, reported user info
+
 ## User Personas
-1. **Customers**: UK residents needing local help (cleaning, tutoring, handyman, etc.)
-2. **Helpers**: Individuals offering services (verified, insured options available)
-3. **Admin**: Platform administrator (admin@anywork.co.uk) for verification management
+1. **Customers**: UK residents needing local help
+2. **Helpers**: Individuals offering services (verified, insured)
+3. **Admin**: Platform administrator for moderation
 
 ## Core Requirements
-- Two-sided marketplace (post jobs / offer skills)
+- Two-sided marketplace
 - Availability-based discovery
 - Trust badges (Verified ID, Insured)
 - Real-time messaging (Socket.IO)
-- AI-powered ID Verification integrated into signup
+- AI-powered ID Verification
 - UK-focused (£ currency, postcodes)
 
 ## What's Been Implemented
 
 ### Pages Built
-1. ✅ Landing Page - Hero, dual CTAs, categories, featured helpers, how it works
-2. ✅ Browse Helpers - Filters, list/map view toggle, helper cards with badges
-3. ✅ Helper Profile - About, services, reviews tabs, booking calendar, Report User
-4. ✅ Post a Job - 4-step form (details, location, budget, review)
-5. ✅ Become a Helper - 5-step onboarding
-6. ✅ Login/Signup - Integrated signup with ID verification flow
-7. ✅ Messages - Real-time chat with Socket.IO (fully wired, Vinted-style)
-8. ✅ Booking Request - Request booking without payment, message exchange
-9. ✅ Trust & Safety - Information page
-10. ✅ Dashboard - User/helper profile management, booking management
-11. ✅ Admin Dashboard - Verification management, reports management
-12. ✅ Verify Identity - Standalone page for existing users
-13. ✅ Legal Pages - Terms, Privacy, Cookies
+1. ✅ Landing Page
+2. ✅ Browse Helpers
+3. ✅ Helper Profile
+4. ✅ Post a Job
+5. ✅ Become a Helper
+6. ✅ Login/Signup (with integrated ID verification)
+7. ✅ Messages (real-time chat)
+8. ✅ Booking Request
+9. ✅ Trust & Safety
+10. ✅ Dashboard
+11. ✅ Admin Panel (NEW - comprehensive admin dashboard)
+12. ✅ Verify Identity
+13. ✅ Legal Pages
 
 ### Backend APIs
 - /api/auth/* (register, login, session, me, logout)
@@ -47,53 +91,37 @@ Create a premium, modern UK-focused marketplace website called "AnyWork" that co
 - /api/jobs/* (CRUD)
 - /api/bookings/* (CRUD, helper bookings, status update)
 - /api/messages/* (conversations, real-time via Socket.IO)
-- /api/reviews/* (CRUD, create review, get helper reviews)
-- /api/reports/* (Report user functionality)
-- /api/verification/* (submit with AI face comparison, status)
+- /api/reviews/* (CRUD)
+- /api/reports/* (Report user)
+- /api/verification/* (submit with AI, status)
+- /api/admin/dashboard/* (stats, activity, charts)
+- /api/admin/users/* (list, detail, status update)
+- /api/admin/jobs/* (list, detail, status update, delete)
+- /api/admin/bookings (list with enriched data)
 - /api/admin/verifications/* (list, detail, approve/reject)
-- /api/admin/reports (Admin: view all user reports)
-- /api/notifications/* (list, read, read-all)
+- /api/admin/reports (list)
+- /api/notifications/*
 - /api/categories
 
-### Integrated Signup + ID Verification Flow (March 2026 - COMPLETED & TESTED)
-**User requested: "During signup, user is immediately asked to verify their ID"**
+### Integrated Signup + ID Verification (AI-Powered)
+1. Form: name, email, phone, password
+2. ID Type: passport, driving license, national ID
+3. Upload ID (front required, back optional)
+4. Take selfie
+5. AI verifies face match (GPT-5.2 vision)
+   - Auto-approve: ≥80% confidence match
+   - Auto-reject: ≥70% confidence NO match
+   - Manual review: uncertain cases
 
-Flow implemented:
-1. **Step 1 (Form)**: User enters name, email, phone, password → clicks "Continue"
-2. **Step 2 (ID Type)**: Select passport, driving license, or national ID → "Skip for now" option available
-3. **Step 3 (ID Upload)**: Upload front of ID (required), back optional for driving license/national ID
-4. **Step 4 (Selfie)**: Take/upload selfie for face comparison
-5. **Step 5 (Result)**: AI verifies and shows result:
-   - ✅ **Verified** (green): AI confidence ≥80% match → instant verification
-   - ❌ **Rejected** (red): AI confidence ≥70% NO match → Try Again button
-   - ⏳ **Pending** (amber): Uncertain → flagged for admin review
-
-**Testing Results:** 100% pass rate (13/13 backend, all frontend steps working)
-
-### Real-time Chat System (Vinted-style - ALREADY IMPLEMENTED)
-- ✅ Socket.IO server setup with room-based messaging
-- ✅ Frontend MessagesPage with real-time updates
-- ✅ Conversation creation from helper profile (Request Quote)
-- ✅ Message to helper option in booking flow
-- ✅ Users can discuss payment details directly
-
-### Features
-- ✅ Responsive design (mobile-first)
-- ✅ MapLibre map integration with List/Map view toggle
-- ✅ WebSocket real-time chat (fully functional)
-- ✅ Sample data seeding
-- ✅ Trust badges (Verified ID, Insured)
-- ✅ Category-based filtering
-- ✅ Report User dialog with 7 reasons
-- ✅ Review/Rating system for completed bookings
-- ✅ Featured helpers on homepage
-- ✅ Seasonal pricing indicators
-- ✅ In-app notifications
+### Real-time Chat (Vinted-style)
+- Socket.IO room-based messaging
+- Conversation creation from helper profile
+- Users discuss payment directly
 
 ## Database Collections
-- users: email, name, role, is_helper, verification_status, is_verified
+- users: email, name, role, is_helper, verification_status, is_verified, is_suspended
 - helper_profiles: bio, categories, hourly_rate, availability, badges
-- jobs: title, description, category, postcode, budget
+- jobs: title, description, category, postcode, budget, status
 - bookings: customer_id, helper_id, status, preferred_payment
 - verifications: user_id, id_type, id_front, id_back, selfie, status, ai_verification
 - messages: conversation_id, sender_id, content
@@ -106,20 +134,19 @@ Flow implemented:
 
 ### P0 (Critical for MVP) - COMPLETED
 - ✅ Core marketplace features
-- ✅ Real-time chat (Socket.IO)
-- ✅ Integrated signup + ID verification with AI face comparison
+- ✅ Real-time chat
+- ✅ AI-powered ID verification
+- ✅ Admin Panel with full management capabilities
 - ✅ Review/rating system
 - ✅ Report User functionality
-- ✅ Direct payment model (Vinted-style)
 
 ### P1 (High Priority)
-- Enable real email sending (add Resend API key - currently MOCKED)
+- Enable real email sending (Resend API - currently MOCKED)
 - Display verification badge prominently on helper profiles
-- Booking calendar sync
 
 ### P2 (Medium Priority)
-- Implement "Reliability Score" based on completed jobs
-- Advanced availability calendar management
+- Implement "Reliability Score"
+- Advanced availability calendar
 - Customer booking history
 - Helper analytics dashboard
 
@@ -129,13 +156,13 @@ Flow implemented:
 - Multi-language support
 
 ## Test Credentials
-- Customer: testcustomer@test.com / Test123!
-- Admin: admin@anywork.co.uk / Admin123!
+- Primary Admin: `nabeel.ucp@gmail.com` / `sana7860`
+- Secondary Admin: `admin@anywork.co.uk` / `Admin123!`
+- Customer: `testcustomer@test.com` / `Test123!`
 
 ## Technical Notes
-- Email service is MOCKED - logs to console with `[EMAIL MOCKED]` prefix
-- Payment processing removed - direct payment model like Vinted
+- Email service is MOCKED
+- Payment processing removed - direct payment model
 - Socket.IO path: /api/socket.io
-- AI Face Verification: Uses EMERGENT_LLM_KEY with GPT-5.2 vision
-- Auto-approve threshold: 80% confidence match
-- Auto-reject threshold: 70% confidence NO match
+- AI Face Verification: EMERGENT_LLM_KEY + GPT-5.2
+- Admin access: role='admin' or email in ADMIN_EMAILS list
