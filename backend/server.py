@@ -1164,23 +1164,69 @@ async def create_report(data: ReportCreate, user: User = Depends(get_current_use
 
 @api_router.get("/conversations")
 async def list_conversations(user: User = Depends(get_current_user)):
-    conversations = await db.conversations.find(
-        {"participants": user.user_id},
-        {"_id": 0}
-    ).sort("updated_at", -1).to_list(100)
-    
-    # Enrich with participant info and last message
-    for conv in conversations:
-        other_id = [p for p in conv["participants"] if p != user.user_id][0] if len(conv.get("participants", [])) > 1 else None
-        if other_id:
-            other_user = await db.users.find_one({"user_id": other_id}, {"_id": 0, "password_hash": 0})
-            conv["other_user"] = other_user
+    """List user's conversations with optimized aggregation pipeline"""
+    pipeline = [
+        # Match conversations where user is a participant
+        {"$match": {"participants": user.user_id}},
         
-        last_msg = await db.messages.find_one(
-            {"conversation_id": conv["conversation_id"]},
-            {"_id": 0}
-        )
-        conv["last_message"] = last_msg
+        # Sort by most recent
+        {"$sort": {"updated_at": -1}},
+        
+        # Limit results
+        {"$limit": 100},
+        
+        # Lookup last message for each conversation
+        {"$lookup": {
+            "from": "messages",
+            "let": {"conv_id": "$conversation_id"},
+            "pipeline": [
+                {"$match": {"$expr": {"$eq": ["$conversation_id", "$$conv_id"]}}},
+                {"$sort": {"created_at": -1}},
+                {"$limit": 1},
+                {"$project": {"_id": 0}}
+            ],
+            "as": "last_message_arr"
+        }},
+        
+        # Lookup participant user data
+        {"$lookup": {
+            "from": "users",
+            "localField": "participants",
+            "foreignField": "user_id",
+            "as": "participant_data"
+        }},
+        
+        # Project final shape
+        {"$project": {
+            "_id": 0,
+            "conversation_id": 1,
+            "participants": 1,
+            "booking_id": 1,
+            "created_at": 1,
+            "updated_at": 1,
+            "last_message": {"$arrayElemAt": ["$last_message_arr", 0]},
+            "participant_data": {
+                "$map": {
+                    "input": "$participant_data",
+                    "as": "p",
+                    "in": {
+                        "user_id": "$$p.user_id",
+                        "name": "$$p.name",
+                        "email": "$$p.email",
+                        "picture": "$$p.picture"
+                    }
+                }
+            }
+        }}
+    ]
+    
+    conversations = await db.conversations.aggregate(pipeline).to_list(100)
+    
+    # Extract other_user for each conversation
+    for conv in conversations:
+        participant_data = conv.pop("participant_data", [])
+        other_user = next((p for p in participant_data if p["user_id"] != user.user_id), None)
+        conv["other_user"] = other_user
     
     return {"conversations": conversations}
 
