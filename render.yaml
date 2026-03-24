@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: anywork-backend
+    runtime: python
+    region: frankfurt
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:fastapi_app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: MONGO_URL
+        value: mongodb+srv://anywork19:sana7860@cluster0.0xlr8n0.mongodb.net/anywork?appName=Cluster0
+      - key: DB_NAME
+        value: anywork
+      - key: JWT_SECRET
+        value: anywork_super_secret_jwt_key_2026
+      - key: PYTHON_VERSION
+        value: 3.11.0
