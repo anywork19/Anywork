@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || 'https://anywork-nygr.onrender.com';
 const API = `${BACKEND_URL}/api`;
 
 const AuthContext = createContext(null);
@@ -20,12 +20,17 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
 
   const checkAuth = useCallback(async () => {
+    const storedToken = localStorage.getItem('auth_token');
+    if (!storedToken) {
+      setLoading(false);
+      return;
+    }
     try {
       const response = await axios.get(`${API}/auth/me`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-        withCredentials: true
+        headers: { Authorization: `Bearer ${storedToken}` }
       });
       setUser(response.data);
+      setToken(storedToken);
     } catch (error) {
       setUser(null);
       setToken(null);
@@ -33,37 +38,31 @@ export const AuthProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => {
-    if (token) {
-      checkAuth();
-    } else {
-      // Try cookie-based auth
-      checkAuth();
-    }
-  }, [checkAuth, token]);
+    checkAuth();
+  }, [checkAuth]);
 
   const login = async (email, password) => {
     const response = await axios.post(`${API}/auth/login`, { email, password });
     const { token: newToken, user: userData } = response.data;
+    localStorage.setItem('auth_token', newToken);
     setToken(newToken);
     setUser(userData);
-    localStorage.setItem('auth_token', newToken);
     return userData;
   };
 
   const register = async (data) => {
     const response = await axios.post(`${API}/auth/register`, data);
     const { token: newToken, user: userData } = response.data;
+    localStorage.setItem('auth_token', newToken);
     setToken(newToken);
     setUser(userData);
-    localStorage.setItem('auth_token', newToken);
     return userData;
   };
 
   const loginWithGoogle = () => {
-    // REMINDER: DO NOT HARDCODE THE URL, OR ADD ANY FALLBACKS OR REDIRECT URLS, THIS BREAKS THE AUTH
     const redirectUrl = window.location.origin + '/auth/callback';
     window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
   };
@@ -72,13 +71,20 @@ export const AuthProvider = ({ children }) => {
     const response = await axios.post(`${API}/auth/session`, { session_id: sessionId }, {
       withCredentials: true
     });
-    setUser(response.data.user);
-    return response.data.user;
+    const { token: newToken, user: userData } = response.data;
+    if (newToken) {
+      localStorage.setItem('auth_token', newToken);
+      setToken(newToken);
+    }
+    setUser(userData || response.data.user);
+    return userData || response.data.user;
   };
 
   const logout = async () => {
     try {
-      await axios.post(`${API}/auth/logout`, {}, { withCredentials: true });
+      await axios.post(`${API}/auth/logout`, {}, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {}
+      });
     } catch (error) {
       // Ignore errors
     }
