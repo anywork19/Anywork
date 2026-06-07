@@ -24,7 +24,7 @@ import api from '../lib/api';
 import { toast } from 'sonner';
 
 // Hardcoded admin email for simple admin check
-const ADMIN_EMAIL = 'admin@anywork.co.uk';
+const isAdmin = user?.email === ADMIN_EMAIL || user?.email === 'nabeel.ucp@gmail.com' || user?.role === 'admin';
 
 export default function AdminDashboardPage() {
   const navigate = useNavigate();
