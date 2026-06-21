@@ -41,7 +41,7 @@ export default function AdminDashboardPage() {
   const [rejectionReason, setRejectionReason] = useState('');
   const [processingId, setProcessingId] = useState(null);
 
-  const isAdmin = user?.email === ADMIN_EMAIL;
+  const isAdmin = user?.email === ADMIN_EMAIL || user?.email === 'nabeel.ucp@gmail.com' || user?.role === 'admin';
 
   useEffect(() => {
     if (!authLoading && isAuthenticated && isAdmin) {
